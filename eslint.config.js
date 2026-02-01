@@ -47,5 +47,21 @@ export default tseslint.config(
       '@typescript-eslint/no-require-imports': 'off',
       'no-control-regex': 'off',
     },
+  },
+  {
+    files: ['packages/agent-spawn/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['poe-code/src/*'],
+              message: 'Import from poe-code public API, not src/',
+            },
+          ],
+        },
+      ],
+    },
   }
 );
