@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Volume, createFsFromVolume } from "memfs";
 import { createProgram } from "../program.js";
-import { setGlobalClient } from "../../services/client-instance.js";
+import * as clientInstance from "../../services/client-instance.js";
 import type { FileSystem } from "../utils/file-system.js";
 import type { LlmClient } from "../services/llm-client.js";
+import * as mcpServer from "../mcp-server.js";
 import {
   DEFAULT_IMAGE_BOT,
   DEFAULT_VIDEO_BOT,
   DEFAULT_AUDIO_BOT
 } from "../constants.js";
-import { getAgentProfile } from "../mcp-agents.js";
 
 const { configureMock, unconfigureMock, resolveAgentSupportMock } = vi.hoisted(() => ({
   configureMock: vi.fn(),
@@ -31,6 +31,11 @@ function createMemfs(): FileSystem {
   const volume = new Volume();
   volume.mkdirSync(homeDir, { recursive: true });
   volume.mkdirSync(cwd, { recursive: true });
+  volume.mkdirSync(`${homeDir}/.poe-code`, { recursive: true });
+  volume.writeFileSync(
+    `${homeDir}/.poe-code/credentials.json`,
+    `${JSON.stringify({ apiKey: "test-api-key" }, null, 2)}\n`
+  );
   return createFsFromVolume(volume).promises as unknown as FileSystem;
 }
 
@@ -69,7 +74,7 @@ describe("mcp command", () => {
   });
 
   describe("poe-code mcp serve --help", () => {
-    it("includes JSON config, tools documentation, and agent list", async () => {
+    it("includes JSON config and tools documentation", async () => {
       const { program } = createMcpProgram();
       let helpOutput = "";
       program.configureOutput({
@@ -85,7 +90,9 @@ describe("mcp command", () => {
 
       expect(helpOutput).toContain("poe-code");
       expect(helpOutput).toContain("mcp");
-      expect(helpOutput).toContain("Available Agents");
+      expect(helpOutput).not.toContain("Available Agents");
+      expect(helpOutput).not.toContain("--agent");
+      expect(helpOutput).toContain("--output-format");
       expect(helpOutput).toContain("Available Tools");
       expect(helpOutput).toContain("generate_text");
       expect(helpOutput).toContain("generate_image");
@@ -94,26 +101,116 @@ describe("mcp command", () => {
     });
   });
 
-  it("rejects invalid agent names", async () => {
+  it("rejects --agent with unknown option error", async () => {
+    const { program } = createMcpProgram();
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((code?: number) => {
+      throw new Error(`exit:${code}`);
+    });
+    try {
+      await expect(
+        program.parseAsync(["node", "cli", "mcp", "serve", "--agent", "claude-code"])
+      ).rejects.toThrow("unknown option '--agent'");
+    } finally {
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("defaults --output-format to url", async () => {
+    const { program } = createMcpProgram();
+    const initSpy = vi
+      .spyOn(clientInstance, "initializeClient")
+      .mockResolvedValue(undefined);
+    const transportSpy = vi
+      .spyOn(mcpServer, "runMcpServerWithTransport")
+      .mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync(["node", "cli", "mcp", "serve"]);
+      expect(transportSpy).toHaveBeenCalledWith(["url"]);
+    } finally {
+      initSpy.mockRestore();
+      transportSpy.mockRestore();
+    }
+  });
+
+  it("parses comma-separated --output-format preferences", async () => {
+    const { program } = createMcpProgram();
+    const initSpy = vi
+      .spyOn(clientInstance, "initializeClient")
+      .mockResolvedValue(undefined);
+    const transportSpy = vi
+      .spyOn(mcpServer, "runMcpServerWithTransport")
+      .mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "cli",
+        "mcp",
+        "serve",
+        "--output-format",
+        "base64,url"
+      ]);
+      expect(transportSpy).toHaveBeenCalledWith(["base64", "url"]);
+    } finally {
+      initSpy.mockRestore();
+      transportSpy.mockRestore();
+    }
+  });
+
+  it("rejects invalid --output-format values", async () => {
     const { program } = createMcpProgram();
     await expect(
-      program.parseAsync(["node", "cli", "mcp", "serve", "--agent", "unknown"])
-    ).rejects.toThrow("Unknown agent");
+      program.parseAsync([
+        "node",
+        "cli",
+        "mcp",
+        "serve",
+        "--output-format",
+        "gif,url"
+      ])
+    ).rejects.toThrow("--output-format");
+  });
+
+  it("rejects empty --output-format entries", async () => {
+    const { program } = createMcpProgram();
+    await expect(
+      program.parseAsync([
+        "node",
+        "cli",
+        "mcp",
+        "serve",
+        "--output-format",
+        "base64,,url"
+      ])
+    ).rejects.toThrow("empty");
+  });
+
+  it("rejects invalid agent names for configure", async () => {
+    resolveAgentSupportMock.mockReturnValue({
+      status: "unknown",
+      input: "unknown"
+    });
+    const { program } = createMcpProgram();
+    await program.parseAsync(["node", "cli", "mcp", "configure", "unknown"]);
+
+    expect(configureMock).not.toHaveBeenCalled();
   });
 
   it("configures with serve command and mapped profile", async () => {
     const { program } = createMcpProgram();
     await program.parseAsync(["node", "cli", "mcp", "configure", "claude-desktop"]);
 
-    expect(configureMock).toHaveBeenCalledWith(
-      "claude-desktop",
+    expect(configureMock).toHaveBeenCalledTimes(1);
+    const [, entry] = configureMock.mock.calls[0] ?? [];
+    expect(entry).toEqual(
       expect.objectContaining({
         config: expect.objectContaining({
-          args: expect.arrayContaining(["mcp", "serve", "--agent", "claude-desktop"])
+          args: expect.arrayContaining(["mcp", "serve"])
         })
-      }),
-      expect.anything()
+      })
     );
+    expect(entry.config.args).not.toContain("--agent");
   });
 
   it("configures aliases using the resolved agent id", async () => {
@@ -126,15 +223,10 @@ describe("mcp command", () => {
 
     await program.parseAsync(["node", "cli", "mcp", "configure", "claude"]);
 
-    expect(configureMock).toHaveBeenCalledWith(
-      "claude-code",
-      expect.objectContaining({
-        config: expect.objectContaining({
-          args: expect.arrayContaining(["mcp", "serve", "--agent", "claude-code"])
-        })
-      }),
-      expect.anything()
-    );
+    expect(configureMock).toHaveBeenCalledTimes(1);
+    const [, entry] = configureMock.mock.calls[0] ?? [];
+    expect(entry.config.args).toEqual(expect.arrayContaining(["mcp", "serve"]));
+    expect(entry.config.args).not.toContain("--agent");
   });
 
   it("rejects agents that are known but not supported for MCP", async () => {
@@ -162,7 +254,7 @@ describe("mcp server tools", () => {
         mimeType: "image/png"
       }))
     };
-    setGlobalClient(mockClient);
+    clientInstance.setGlobalClient(mockClient);
   });
 
   it("generate_text uses client.text()", async () => {
@@ -199,12 +291,10 @@ describe("mcp server tools", () => {
 
   it("generate_image uses client.media() with default bot", async () => {
     const { generateImage } = await import("../mcp-server.js");
-    const profile = getAgentProfile("generic");
-    if (!profile) throw new Error("Missing generic profile in test");
 
     const result = await generateImage({
       prompt: "A sunset"
-    }, profile);
+    });
 
     expect(mockClient.media).toHaveBeenCalledWith("image", {
       model: DEFAULT_IMAGE_BOT,
@@ -214,15 +304,65 @@ describe("mcp server tools", () => {
     expect(result).toEqual([{ type: "text", text: "https://example.com/media.png" }]);
   });
 
+  it("generate_image emits base64 image blocks when preferred", async () => {
+    const { generateImage } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      data: "iVBORw0KGgo=",
+      mimeType: "image/png"
+    }));
+
+    const result = await generateImage({ prompt: "A sunset" }, ["base64"]);
+
+    expect(result).toEqual([{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }]);
+  });
+
+  it("generate_image converts URL to base64 when preferred", async () => {
+    const { generateImage } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      url: "https://example.com/media.png"
+    }));
+
+    const pngBytes = Uint8Array.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x00
+    ]);
+
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: { get: () => null },
+      arrayBuffer: async () => pngBytes.buffer
+    } as unknown as Response);
+
+    const result = await generateImage({ prompt: "A sunset" }, ["base64"]);
+
+    expect(result).toEqual([
+      { type: "image", data: Buffer.from(pngBytes).toString("base64"), mimeType: "image/png" }
+    ]);
+  });
+
+  it("generate_image falls back to url when base64 conversion fails", async () => {
+    const { generateImage } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      url: "https://example.com/media.png"
+    }));
+
+    const result = await generateImage({ prompt: "A sunset" }, ["base64", "url"]);
+
+    expect(fetch).toHaveBeenCalled();
+    expect(result).toEqual([{ type: "text", text: "https://example.com/media.png" }]);
+  });
+
   it("generate_image uses custom bot_name", async () => {
     const { generateImage } = await import("../mcp-server.js");
-    const profile = getAgentProfile("generic");
-    if (!profile) throw new Error("Missing generic profile in test");
 
     await generateImage({
       prompt: "A cat",
       bot_name: "custom-image-bot"
-    }, profile);
+    });
 
     expect(mockClient.media).toHaveBeenCalledWith("image", {
       model: "custom-image-bot",
@@ -233,8 +373,6 @@ describe("mcp server tools", () => {
 
   it("generate_video uses client.media() with default bot", async () => {
     const { generateVideo } = await import("../mcp-server.js");
-    const profile = getAgentProfile("generic");
-    if (!profile) throw new Error("Missing generic profile in test");
 
     mockClient.media = vi.fn(async () => ({
       url: "https://example.com/video.mp4",
@@ -243,7 +381,7 @@ describe("mcp server tools", () => {
 
     const result = await generateVideo({
       prompt: "A rocket launch"
-    }, profile);
+    });
 
     expect(mockClient.media).toHaveBeenCalledWith("video", {
       model: DEFAULT_VIDEO_BOT,
@@ -255,8 +393,6 @@ describe("mcp server tools", () => {
 
   it("generate_audio uses client.media() with default bot", async () => {
     const { generateAudio } = await import("../mcp-server.js");
-    const profile = getAgentProfile("generic");
-    if (!profile) throw new Error("Missing generic profile in test");
 
     mockClient.media = vi.fn(async () => ({
       url: "https://example.com/audio.mp3",
@@ -265,7 +401,7 @@ describe("mcp server tools", () => {
 
     const result = await generateAudio({
       prompt: "Hello world"
-    }, profile);
+    });
 
     expect(mockClient.media).toHaveBeenCalledWith("audio", {
       model: DEFAULT_AUDIO_BOT,
@@ -275,96 +411,30 @@ describe("mcp server tools", () => {
     expect(result).toEqual([{ type: "text", text: "https://example.com/audio.mp3" }]);
   });
 
-  it("generate_image throws when no URL is returned", async () => {
+  it("generate_audio emits base64 audio blocks when preferred", async () => {
+    const { generateAudio } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      data: "SUQzBAAAAAA=",
+      mimeType: "audio/mpeg"
+    }));
+
+    const result = await generateAudio({ prompt: "Hello world" }, ["base64"]);
+
+    expect(result).toEqual([
+      { type: "audio", data: "SUQzBAAAAAA=", mimeType: "audio/mpeg" }
+    ]);
+  });
+
+  it("generate_image throws actionable error for url-only output", async () => {
     const { generateImage } = await import("../mcp-server.js");
-    const profile = getAgentProfile("generic");
-    if (!profile) throw new Error("Missing generic profile in test");
 
     mockClient.media = vi.fn(async () => ({
       content: "Error message"
     }));
 
-    await expect(generateImage({ prompt: "Test" }, profile)).rejects.toThrow(
-      `Model "${DEFAULT_IMAGE_BOT}" did not return an image URL`
+    await expect(generateImage({ prompt: "Test" })).rejects.toThrow(
+      "Cannot produce url output"
     );
-  });
-
-  it("returns rich image content when agent supports it", async () => {
-    const { generateImage } = await import("../mcp-server.js");
-    const profile = getAgentProfile("claude-code");
-    if (!profile) throw new Error("Missing claude-code profile in test");
-
-    mockClient.media = vi.fn(async () => ({
-      data: "BASE64IMAGE",
-      mimeType: "image/png"
-    }));
-
-    const result = await generateImage({ prompt: "A logo" }, profile);
-
-    expect(result).toEqual([
-      { type: "image", data: "BASE64IMAGE", mimeType: "image/png" }
-    ]);
-  });
-
-  it("fetches image content from URL when agent supports it", async () => {
-    const { generateImage } = await import("../mcp-server.js");
-    const profile = getAgentProfile("claude-code");
-    if (!profile) throw new Error("Missing claude-code profile in test");
-
-    const pngData = new Uint8Array([
-      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x00
-    ]);
-
-    const mockResponse = {
-      ok: true,
-      arrayBuffer: () => Promise.resolve(pngData.buffer),
-      headers: { get: () => "image/png" }
-    };
-
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse as unknown as Response));
-
-    try {
-      mockClient.media = vi.fn(async () => ({
-        url: "https://example.com/media.png"
-      }));
-
-      const result = await generateImage({ prompt: "A logo" }, profile);
-
-      expect(result).toEqual([
-        { type: "image", data: Buffer.from(pngData).toString("base64"), mimeType: "image/png" }
-      ]);
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("fetches audio content from URL when agent supports it", async () => {
-    const { generateAudio } = await import("../mcp-server.js");
-    const profile = getAgentProfile("claude-code");
-    if (!profile) throw new Error("Missing claude-code profile in test");
-
-    const audioData = new Uint8Array([0x00, 0x01, 0x02, 0x03]);
-    const mockResponse = {
-      ok: true,
-      arrayBuffer: () => Promise.resolve(audioData.buffer),
-      headers: { get: () => "audio/mpeg" }
-    };
-
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse as unknown as Response));
-
-    try {
-      mockClient.media = vi.fn(async () => ({
-        url: "https://example.com/audio.mp3",
-        mimeType: "audio/mpeg"
-      }));
-
-      const result = await generateAudio({ prompt: "Hello world" }, profile);
-
-      expect(result).toEqual([
-        { type: "audio", data: Buffer.from(audioData).toString("base64"), mimeType: "audio/mpeg" }
-      ]);
-    } finally {
-      vi.unstubAllGlobals();
-    }
   });
 });

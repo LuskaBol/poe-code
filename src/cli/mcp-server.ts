@@ -2,23 +2,19 @@ import {
   createServer,
   defineSchema,
   type Server,
+  type ContentBlock,
   Image,
-  Audio,
-  type ContentBlock
+  Audio
 } from "@poe-code/tiny-mcp-server";
 import chalk from "chalk";
 import { getGlobalClient } from "../services/client-instance.js";
 import type { LlmResponse } from "../services/llm-client.js";
 import {
-  DEFAULT_AGENT,
-  getAgentProfile,
-  type McpAgentProfile
-} from "./mcp-agents.js";
-import {
   DEFAULT_IMAGE_BOT,
   DEFAULT_VIDEO_BOT,
   DEFAULT_AUDIO_BOT
 } from "./constants.js";
+import type { McpOutputFormat } from "./mcp-output-format.js";
 
 // Tool schemas using defineSchema
 const generateTextSchema = defineSchema({
@@ -139,7 +135,7 @@ export async function generateText(args: GenerateTextArgs): Promise<McpToolResul
 
 export async function generateImage(
   args: GenerateMediaArgs,
-  profile: McpAgentProfile
+  outputFormatPreferences: McpOutputFormat[] = ["url"]
 ): Promise<McpToolResult> {
   const client = getGlobalClient();
   const model = args.bot_name ?? DEFAULT_IMAGE_BOT;
@@ -148,16 +144,16 @@ export async function generateImage(
     prompt: args.prompt,
     params: args.params
   });
-  const hasBase64 = typeof response.data === "string" && typeof response.mimeType === "string";
-  if (!response.url && !(profile.supportsRichContent && hasBase64)) {
-    throw new Error(`Model "${model}" did not return an image URL`);
-  }
-  return await toMcpContent(response, profile, "image");
+  return toPreferredMediaContent({
+    mediaType: "image",
+    model,
+    outputFormatPreferences,
+    response
+  });
 }
 
 export async function generateVideo(
-  args: GenerateMediaArgs,
-  profile: McpAgentProfile
+  args: GenerateMediaArgs
 ): Promise<McpToolResult> {
   const client = getGlobalClient();
   const model = args.bot_name ?? DEFAULT_VIDEO_BOT;
@@ -166,15 +162,17 @@ export async function generateVideo(
     prompt: args.prompt,
     params: args.params
   });
-  if (!response.url) {
-    throw new Error(`Model "${model}" did not return a video URL`);
-  }
-  return await toMcpContent(response, profile, "video");
+  return toPreferredMediaContent({
+    mediaType: "video",
+    model,
+    outputFormatPreferences: ["url"],
+    response
+  });
 }
 
 export async function generateAudio(
   args: GenerateMediaArgs,
-  profile: McpAgentProfile
+  outputFormatPreferences: McpOutputFormat[] = ["url"]
 ): Promise<McpToolResult> {
   const client = getGlobalClient();
   const model = args.bot_name ?? DEFAULT_AUDIO_BOT;
@@ -183,55 +181,142 @@ export async function generateAudio(
     prompt: args.prompt,
     params: args.params
   });
-  const hasBase64 = typeof response.data === "string" && typeof response.mimeType === "string";
-  if (!response.url && !(profile.supportsRichContent && hasBase64)) {
-    throw new Error(`Model "${model}" did not return an audio URL`);
-  }
-  return await toMcpContent(response, profile, "audio");
+  return toPreferredMediaContent({
+    mediaType: "audio",
+    model,
+    outputFormatPreferences,
+    response
+  });
 }
 
-async function toMcpContent(
-  response: LlmResponse,
-  profile: McpAgentProfile,
-  mediaType?: "image" | "audio" | "video"
-): Promise<ContentBlock[]> {
-  const content: ContentBlock[] = [];
+type MediaType = "image" | "audio" | "video";
 
-  if (response.content) {
-    content.push({ type: "text", text: response.content });
+async function toPreferredMediaContent(options: {
+  mediaType: MediaType;
+  model: string;
+  outputFormatPreferences: McpOutputFormat[];
+  response: LlmResponse;
+}): Promise<ContentBlock[]> {
+  const content: ContentBlock[] = [];
+  if (options.response.content) {
+    content.push({ type: "text", text: options.response.content });
   }
 
-  const data = response.data;
-  const mimeType = response.mimeType;
-  const hasBase64 = typeof data === "string" && typeof mimeType === "string";
-  let addedRichMedia = false;
-  if (profile.supportsRichContent && mediaType) {
-    if (hasBase64) {
-      if (mediaType === "image") {
-        content.push(Image.fromBase64(data, mimeType).toContentBlock());
-        addedRichMedia = true;
-      } else if (mediaType === "audio") {
-        content.push(Audio.fromBase64(data, mimeType).toContentBlock());
-        addedRichMedia = true;
+  const preferenceErrors: string[] = [];
+
+  for (const format of options.outputFormatPreferences) {
+    if (format === "url") {
+      if (options.response.url) {
+        content.push({ type: "text", text: options.response.url });
+        return content;
       }
-    } else if (response.url) {
-      if (mediaType === "image") {
-        const image = await Image.fromUrl(response.url);
-        content.push(image.toContentBlock());
-        addedRichMedia = true;
-      } else if (mediaType === "audio") {
-        const audio = await Audio.fromUrl(response.url);
-        content.push(audio.toContentBlock());
-        addedRichMedia = true;
+      preferenceErrors.push("url output requires a URL");
+      continue;
+    }
+
+    if (format === "base64") {
+      const base64Block = await tryToBase64ContentBlock(
+        options.mediaType,
+        options.response
+      );
+      if (base64Block) {
+        content.push(base64Block);
+        return content;
       }
+      preferenceErrors.push(base64OutputRequirement(options.mediaType));
+      continue;
     }
   }
 
-  if (!addedRichMedia && response.url) {
-    content.push({ type: "text", text: response.url });
+  if (
+    options.outputFormatPreferences.length === 1 &&
+    options.outputFormatPreferences[0] === "url"
+  ) {
+    throw new Error(
+      `Cannot produce url output for ${options.mediaType} from model "${options.model}": ` +
+        `response did not include a URL. ` +
+        `If the model returns base64 data, try "--output-format base64" or "--output-format base64,url".`
+    );
   }
 
-  return content;
+  throw new Error(
+    `Cannot produce requested media output for ${options.mediaType} from model "${options.model}". ` +
+      `Preferences: ${options.outputFormatPreferences.join(",")}. ` +
+      `Available: ${describeMediaAvailability(options.mediaType, options.response)}. ` +
+      `Tried: ${preferenceErrors.join("; ")}.`
+  );
+}
+
+function base64OutputRequirement(mediaType: MediaType): string {
+  if (mediaType === "video") {
+    return "base64 output is not supported for video";
+  }
+  return "base64 output requires base64 data or a convertible URL";
+}
+
+function describeMediaAvailability(mediaType: MediaType, response: LlmResponse): string {
+  const parts: string[] = [];
+  if (typeof response.url === "string") {
+    parts.push("url: present");
+  } else {
+    parts.push("url: missing");
+  }
+
+  if (typeof response.data === "string") {
+    parts.push("data: present");
+    if (typeof response.mimeType === "string") {
+      parts.push(`mimeType: ${response.mimeType}`);
+    } else if (mediaType !== "video") {
+      parts.push("mimeType: missing");
+    }
+  } else {
+    parts.push("data: missing");
+  }
+
+  if (typeof response.content === "string" && response.content.trim().length > 0) {
+    parts.push("content: present");
+  }
+
+  return parts.join(", ");
+}
+
+async function tryToBase64ContentBlock(
+  mediaType: MediaType,
+  response: LlmResponse
+): Promise<ContentBlock | undefined> {
+  if (mediaType === "video") {
+    return undefined;
+  }
+
+  if (typeof response.data === "string") {
+    try {
+      if (typeof response.mimeType === "string") {
+        return mediaType === "image"
+          ? Image.fromBase64(response.data, response.mimeType).toContentBlock()
+          : Audio.fromBase64(response.data, response.mimeType).toContentBlock();
+      }
+
+      const decoded = Buffer.from(response.data, "base64");
+      const bytes = new Uint8Array(decoded);
+      return mediaType === "image"
+        ? Image.fromBytes(bytes).toContentBlock()
+        : Audio.fromBytes(bytes).toContentBlock();
+    } catch {
+      // fall through to URL conversion if available
+    }
+  }
+
+  if (typeof response.url === "string") {
+    try {
+      return mediaType === "image"
+        ? (await Image.fromUrl(response.url)).toContentBlock()
+        : (await Audio.fromUrl(response.url)).toContentBlock();
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
 }
 
 function normalizeParams(
@@ -259,8 +344,9 @@ interface GenerateMediaSchemaType {
   params?: Record<string, unknown>;
 }
 
-export function createMcpServer(profile?: McpAgentProfile): Server {
-  const resolvedProfile = resolveAgentProfile(profile);
+export function createMcpServer(
+  outputFormatPreferences: McpOutputFormat[] = ["url"]
+): Server {
   return createServer({
     name: "poe-code",
     version: "1.0.0"
@@ -286,7 +372,7 @@ export function createMcpServer(profile?: McpAgentProfile): Server {
           prompt: args.prompt,
           bot_name: args.bot_name,
           params: normalizeParams(args.params)
-        }, resolvedProfile);
+        }, outputFormatPreferences);
       }
     )
     .tool(
@@ -298,7 +384,7 @@ export function createMcpServer(profile?: McpAgentProfile): Server {
           prompt: args.prompt,
           bot_name: args.bot_name,
           params: normalizeParams(args.params)
-        }, resolvedProfile);
+        });
       }
     )
     .tool(
@@ -310,23 +396,14 @@ export function createMcpServer(profile?: McpAgentProfile): Server {
           prompt: args.prompt,
           bot_name: args.bot_name,
           params: normalizeParams(args.params)
-        }, resolvedProfile);
+        }, outputFormatPreferences);
       }
     );
 }
 
-export async function runMcpServerWithTransport(profile: McpAgentProfile): Promise<void> {
-  const server = createMcpServer(profile);
+export async function runMcpServerWithTransport(
+  outputFormatPreferences: McpOutputFormat[] = ["url"]
+): Promise<void> {
+  const server = createMcpServer(outputFormatPreferences);
   await server.listen();
-}
-
-function resolveAgentProfile(profile?: McpAgentProfile): McpAgentProfile {
-  if (profile) {
-    return profile;
-  }
-  const fallback = getAgentProfile(DEFAULT_AGENT);
-  if (!fallback) {
-    throw new Error(`Unknown agent: ${DEFAULT_AGENT}`);
-  }
-  return fallback;
 }

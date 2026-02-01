@@ -38,6 +38,10 @@ local_scripts/watch-diff.ts
 .codex/
 .cursor/
 .opencode/
+.ralphy/
+.agents/ralph/
+.ralph/
+.agents/
 openspec
 
 # E2E test logs

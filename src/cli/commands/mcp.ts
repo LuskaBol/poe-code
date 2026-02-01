@@ -5,7 +5,7 @@ import { loadCredentials } from "../../services/credentials.js";
 import { initializeClient } from "../../services/client-instance.js";
 import { runMcpServerWithTransport, formatMcpToolsDocs } from "../mcp-server.js";
 import { createExecutionResources, resolveCommandFlags } from "./shared.js";
-import { ValidationError } from "../errors.js";
+import { parseMcpOutputFormatPreferences } from "../mcp-output-format.js";
 import {
   supportedAgents,
   configure,
@@ -17,19 +17,10 @@ import {
   getCurrentExecutionContext,
   toMcpServerCommand
 } from "../../utils/execution-context.js";
-import {
-  DEFAULT_AGENT,
-  MCP_AGENT_PROFILES,
-  formatAgentsList,
-  getAgentProfile,
-  type McpAgentProfile
-} from "../mcp-agents.js";
 
 const DEFAULT_MCP_AGENT = "claude-code";
 
-function createMcpServerEntry(
-  profileName = DEFAULT_AGENT
-): McpServerEntry {
+function createMcpServerEntry(): McpServerEntry {
   const context = getCurrentExecutionContext(import.meta.url);
   const mcpCommand = toMcpServerCommand(context.command, "mcp");
   return {
@@ -37,21 +28,19 @@ function createMcpServerEntry(
     config: {
       transport: "stdio",
       command: mcpCommand.command,
-      args: [...mcpCommand.args, "serve", "--agent", profileName]
+      args: [...mcpCommand.args, "serve"]
     }
   };
 }
 
 function buildHelpText(): string {
-  const server = createMcpServerEntry(DEFAULT_AGENT);
+  const server = createMcpServerEntry();
   const lines: string[] = [
     "",
     "Configuration:",
     JSON.stringify({ [server.name]: server.config }, null, 2),
     "",
-    formatMcpToolsDocs(),
-    "",
-    formatAgentsList()
+    formatMcpToolsDocs()
   ];
   return lines.join("\n");
 }
@@ -71,17 +60,13 @@ export function registerMcpCommand(
   mcp
     .command("serve")
     .description("Run MCP server on stdin/stdout")
-    .option("--agent <name>", `MCP client profile (default: ${DEFAULT_AGENT})`)
+    .option(
+      "--output-format <format>",
+      'Preferred MCP media output format(s): "url", "base64", or comma-separated list (default: "url").'
+    )
     .addHelpText("after", buildHelpText())
-    .action(async function (this: Command) {
-      const agent = this.opts<{ agent?: string }>().agent ?? DEFAULT_AGENT;
-      const profile = getAgentProfile(agent);
-      if (!profile) {
-        throw new ValidationError(
-          `Unknown agent: ${agent}. Available agents: ${Object.keys(MCP_AGENT_PROFILES).join(", ")}`
-        );
-      }
-      await runMcpServer(container, profile);
+    .action(async (options: { outputFormat?: string }) => {
+      await runMcpServer(container, { outputFormat: options.outputFormat });
     });
 
   mcp
@@ -122,7 +107,7 @@ export function registerMcpCommand(
       }
 
       const resolvedAgent = support.id ?? agent;
-      await configure(resolvedAgent, createMcpServerEntry(resolvedAgent), {
+      await configure(resolvedAgent, createMcpServerEntry(), {
         fs: container.fs,
         homeDir: container.env.homeDir,
         platform: process.platform as "darwin" | "linux" | "win32",
@@ -197,8 +182,12 @@ export function registerMcpCommand(
 
 async function runMcpServer(
   container: CliContainer,
-  profile: McpAgentProfile
+  options: { outputFormat?: string }
 ): Promise<void> {
+  const outputFormatPreferences = parseMcpOutputFormatPreferences(
+    options.outputFormat
+  );
+
   const apiKey = await loadCredentials({
     fs: container.fs,
     filePath: container.env.credentialsPath
@@ -215,5 +204,5 @@ async function runMcpServer(
     httpClient: container.httpClient
   });
 
-  await runMcpServerWithTransport(profile);
+  await runMcpServerWithTransport(outputFormatPreferences);
 }
