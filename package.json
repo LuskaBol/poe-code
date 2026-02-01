@@ -38,7 +38,8 @@
     "e2e:cleanup": "tsx packages/e2e-docker-test-runner/scripts/cleanup.ts",
     "e2e:logs": "tsx packages/e2e-docker-test-runner/scripts/logs.ts",
     "e2e:logs:rotate": "tsx packages/e2e-docker-test-runner/scripts/logs.ts --rotate",
-    "e2e:cache:clear": "rm -rf ~/.cache/poe-e2e"
+    "e2e:cache:clear": "rm -rf ~/.cache/poe-e2e",
+    "prepare": "husky"
   },
   "bin": {
     "poe-code": "dist/index.js",
@@ -75,10 +76,11 @@
     "@typescript-eslint/parser": "^8.46.2",
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^9.1.0",
+    "husky": "^9.1.7",
     "memfs": "^4.7.3",
     "prettier": "^3.3.3",
-    "turbo": "^2.5.0",
     "tsx": ">=4.21.0",
+    "turbo": "^2.5.0",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.46.2",
     "vitest": ">=4.0.17"
