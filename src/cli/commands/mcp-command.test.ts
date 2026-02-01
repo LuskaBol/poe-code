@@ -308,13 +308,15 @@ describe("mcp server tools", () => {
     const { generateImage } = await import("../mcp-server.js");
 
     mockClient.media = vi.fn(async () => ({
-      data: "iVBORw0KGgo=",
+      data: "BASE64IMAGE",
       mimeType: "image/png"
     }));
 
-    const result = await generateImage({ prompt: "A sunset" }, ["base64"]);
+    const result = await generateImage({ prompt: "A sunset" }, ["base64", "url"]);
 
-    expect(result).toEqual([{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }]);
+    expect(result).toEqual([
+      { type: "image", data: "BASE64IMAGE", mimeType: "image/png" }
+    ]);
   });
 
   it("generate_image converts URL to base64 when preferred", async () => {
@@ -415,14 +417,14 @@ describe("mcp server tools", () => {
     const { generateAudio } = await import("../mcp-server.js");
 
     mockClient.media = vi.fn(async () => ({
-      data: "SUQzBAAAAAA=",
+      data: "BASE64AUDIO",
       mimeType: "audio/mpeg"
     }));
 
-    const result = await generateAudio({ prompt: "Hello world" }, ["base64"]);
+    const result = await generateAudio({ prompt: "Hello world" }, ["base64", "url"]);
 
     expect(result).toEqual([
-      { type: "audio", data: "SUQzBAAAAAA=", mimeType: "audio/mpeg" }
+      { type: "audio", data: "BASE64AUDIO", mimeType: "audio/mpeg" }
     ]);
   });
 
@@ -430,11 +432,12 @@ describe("mcp server tools", () => {
     const { generateImage } = await import("../mcp-server.js");
 
     mockClient.media = vi.fn(async () => ({
-      content: "Error message"
+      data: "BASE64IMAGE",
+      mimeType: "image/png"
     }));
 
     await expect(generateImage({ prompt: "Test" })).rejects.toThrow(
-      "Cannot produce url output"
+      /Cannot produce url output for image/
     );
   });
 });

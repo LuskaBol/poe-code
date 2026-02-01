@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import { resolveAgentSupport, type AgentMcpConfig } from "./configs.js";
 
 describe("resolveAgentSupport", () => {
+  it("does not export documentedAgents", async () => {
+    const configsModule = await import("./configs.js");
+    expect("documentedAgents" in configsModule).toBe(false);
+  });
+
   it("returns supported for aliases", () => {
     const result = resolveAgentSupport("CLAUDE");
     expect(result.status).toBe("supported");
