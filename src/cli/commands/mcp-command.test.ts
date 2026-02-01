@@ -11,16 +11,17 @@ import {
 } from "../constants.js";
 import { getAgentProfile } from "../mcp-agents.js";
 
-const { configureMock, unconfigureMock } = vi.hoisted(() => ({
+const { configureMock, unconfigureMock, resolveAgentSupportMock } = vi.hoisted(() => ({
   configureMock: vi.fn(),
-  unconfigureMock: vi.fn()
+  unconfigureMock: vi.fn(),
+  resolveAgentSupportMock: vi.fn()
 }));
 
 vi.mock("@poe-code/agent-mcp-config", () => ({
   supportedAgents: ["claude-desktop", "claude-code", "codex"],
   configure: configureMock,
   unconfigure: unconfigureMock,
-  resolveSupportsRichContent: () => true
+  resolveAgentSupport: resolveAgentSupportMock
 }));
 
 const cwd = "/repo";
@@ -55,6 +56,12 @@ describe("mcp command", () => {
     consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     configureMock.mockReset();
     unconfigureMock.mockReset();
+    resolveAgentSupportMock.mockReset();
+    resolveAgentSupportMock.mockImplementation((input: string) => ({
+      status: "supported",
+      input,
+      id: input
+    }));
   });
 
   afterEach(() => {
@@ -107,6 +114,40 @@ describe("mcp command", () => {
       }),
       expect.anything()
     );
+  });
+
+  it("configures aliases using the resolved agent id", async () => {
+    resolveAgentSupportMock.mockReturnValue({
+      status: "supported",
+      input: "claude",
+      id: "claude-code"
+    });
+    const { program } = createMcpProgram();
+
+    await program.parseAsync(["node", "cli", "mcp", "configure", "claude"]);
+
+    expect(configureMock).toHaveBeenCalledWith(
+      "claude-code",
+      expect.objectContaining({
+        config: expect.objectContaining({
+          args: expect.arrayContaining(["mcp", "serve", "--agent", "claude-code"])
+        })
+      }),
+      expect.anything()
+    );
+  });
+
+  it("rejects agents that are known but not supported for MCP", async () => {
+    resolveAgentSupportMock.mockReturnValue({
+      status: "unsupported",
+      input: "claude-code",
+      id: "claude-code"
+    });
+    const { program } = createMcpProgram();
+
+    await program.parseAsync(["node", "cli", "mcp", "configure", "claude-code"]);
+
+    expect(configureMock).not.toHaveBeenCalled();
   });
 });
 

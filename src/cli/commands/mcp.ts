@@ -10,6 +10,7 @@ import {
   supportedAgents,
   configure,
   unconfigure,
+  resolveAgentSupport,
   type McpServerEntry
 } from "@poe-code/agent-mcp-config";
 import {
@@ -110,12 +111,18 @@ export function registerMcpCommand(
 
       resources.logger.intro(`mcp configure ${agent}`);
 
-      if (!supportedAgents.includes(agent)) {
+      const support = resolveAgentSupport(agent);
+      if (support.status === "unknown") {
         resources.logger.error(`Unknown agent: ${agent}`);
         return;
       }
+      if (support.status === "unsupported") {
+        resources.logger.error(`MCP not supported for ${support.id}.`);
+        return;
+      }
 
-      await configure(agent, createMcpServerEntry(agent), {
+      const resolvedAgent = support.id ?? agent;
+      await configure(resolvedAgent, createMcpServerEntry(resolvedAgent), {
         fs: container.fs,
         homeDir: container.env.homeDir,
         platform: process.platform as "darwin" | "linux" | "win32",
@@ -135,8 +142,8 @@ export function registerMcpCommand(
       });
 
       resources.context.complete({
-        success: `Configured MCP for ${agent}.`,
-        dry: `Would configure MCP for ${agent}.`
+        success: `Configured MCP for ${resolvedAgent}.`,
+        dry: `Would configure MCP for ${resolvedAgent}.`
       });
       resources.context.finalize();
     });
@@ -150,12 +157,18 @@ export function registerMcpCommand(
 
       resources.logger.intro(`mcp unconfigure ${agent}`);
 
-      if (!supportedAgents.includes(agent)) {
+      const support = resolveAgentSupport(agent);
+      if (support.status === "unknown") {
         resources.logger.error(`Unknown agent: ${agent}`);
         return;
       }
+      if (support.status === "unsupported") {
+        resources.logger.error(`MCP not supported for ${support.id}.`);
+        return;
+      }
 
-      await unconfigure(agent, "poe-code", {
+      const resolvedAgent = support.id ?? agent;
+      await unconfigure(resolvedAgent, "poe-code", {
         fs: container.fs,
         homeDir: container.env.homeDir,
         platform: process.platform as "darwin" | "linux" | "win32",
@@ -175,8 +188,8 @@ export function registerMcpCommand(
       });
 
       resources.context.complete({
-        success: `Removed MCP configuration from ${agent}.`,
-        dry: `Would remove MCP configuration from ${agent}.`
+        success: `Removed MCP configuration from ${resolvedAgent}.`,
+        dry: `Would remove MCP configuration from ${resolvedAgent}.`
       });
       resources.context.finalize();
     });

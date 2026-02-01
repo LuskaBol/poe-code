@@ -34,6 +34,21 @@ describe("configure", () => {
       });
     });
 
+    it("accepts aliases", async () => {
+      const fs = createMockFs({}, HOME_DIR);
+      const server: McpServerEntry = {
+        name: "poe-code",
+        config: { transport: "stdio", command: "npx" }
+      };
+
+      await configure("claude", server, createOptions(fs));
+
+      const content = JSON.parse(fs.getContent("/home/test/.claude.json")!);
+      expect(content.mcpServers["poe-code"]).toEqual({
+        command: "npx"
+      });
+    });
+
     it("merges with existing config", async () => {
       const fs = createMockFs(
         {

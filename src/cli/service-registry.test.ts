@@ -38,6 +38,18 @@ describe("ServiceRegistry", () => {
     expect(registry.list()).toEqual([adapter]);
   });
 
+  it("resolves agent aliases case-insensitively via agent defs", () => {
+    const registry = createServiceRegistry();
+    const adapter = createProviderStub({
+      name: "claude-code",
+      label: "Claude Code"
+    });
+
+    registry.register(adapter);
+
+    expect(registry.get("CLAUDE")).toBe(adapter);
+  });
+
   it("prevents alias registrations that collide with existing provider ids", () => {
     const registry = createServiceRegistry();
     registry.register(

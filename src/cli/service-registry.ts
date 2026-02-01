@@ -8,6 +8,7 @@ import type {
   ReasoningPromptInput
 } from "./prompts.js";
 import type { MutationObservers } from "@poe-code/config-mutations";
+import { resolveAgentId } from "@poe-code/agent-defs";
 
 export interface ServiceManifestPathMapper {
   mapTargetDirectory: (input: {
@@ -199,8 +200,20 @@ export function createServiceRegistry(): ServiceRegistry {
     }
   };
 
+  const resolveCanonicalName = (name: string): string | undefined => {
+    const direct = nameToCanonical.get(name);
+    if (direct) {
+      return direct;
+    }
+    const resolvedAgent = resolveAgentId(name);
+    if (!resolvedAgent) {
+      return undefined;
+    }
+    return nameToCanonical.get(resolvedAgent);
+  };
+
   const get = (name: string): ProviderService | undefined => {
-    const canonicalName = nameToCanonical.get(name);
+    const canonicalName = resolveCanonicalName(name);
     if (!canonicalName) {
       return undefined;
     }
