@@ -10,6 +10,9 @@ export interface MockFileSystem extends FileSystem {
   exists(path: string): boolean;
   /** Get file content or undefined if not found */
   getContent(path: string): string | undefined;
+  /** Read file with encoding overloads for compatibility */
+  readFile(path: string, encoding: BufferEncoding): Promise<string>;
+  readFile(path: string): Promise<Buffer>;
 }
 
 export interface MockFsOptions {
@@ -47,7 +50,7 @@ export function createMockFs(
   // Ensure home directory exists
   addDirectoryTree(homeDir, directories);
 
-  const mockFs: MockFileSystem = {
+  const mockFs = {
     files,
     directories,
 
@@ -61,21 +64,24 @@ export function createMockFs(
       return files[absolutePath];
     },
 
-    async readFile(filePath: string, encoding: "utf8"): Promise<string> {
-      void encoding; // TypeScript satisfaction
+    async readFile(filePath: string, encoding?: BufferEncoding): Promise<string | Buffer> {
       const absolutePath = expandPath(filePath, homeDir);
       if (!(absolutePath in files)) {
         const error = new Error(`ENOENT: no such file or directory, open '${absolutePath}'`);
         (error as NodeJS.ErrnoException).code = "ENOENT";
         throw error;
       }
-      return files[absolutePath];
+      const content = files[absolutePath]!;
+      if (encoding) {
+        return content;
+      }
+      return Buffer.from(content, "utf8");
     },
 
     async writeFile(
       filePath: string,
-      content: string,
-      options?: { encoding: "utf8" }
+      content: string | NodeJS.ArrayBufferView,
+      options?: { encoding?: BufferEncoding }
     ): Promise<void> {
       void options; // TypeScript satisfaction
       const absolutePath = expandPath(filePath, homeDir);
@@ -88,7 +94,17 @@ export function createMockFs(
         throw error;
       }
 
-      files[absolutePath] = content;
+      if (typeof content === "string") {
+        files[absolutePath] = content;
+      } else if (Buffer.isBuffer(content)) {
+        files[absolutePath] = content.toString("utf8");
+      } else {
+        files[absolutePath] = Buffer.from(
+          content.buffer,
+          content.byteOffset,
+          content.byteLength
+        ).toString("utf8");
+      }
     },
 
     async mkdir(dirPath: string, options?: { recursive: boolean }): Promise<void> {
@@ -173,7 +189,7 @@ export function createMockFs(
     }
   };
 
-  return mockFs;
+  return mockFs as MockFileSystem;
 }
 
 /**
