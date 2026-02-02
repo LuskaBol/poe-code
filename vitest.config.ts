@@ -40,7 +40,8 @@ export default defineConfig({
     include: [
       "src/**/*.test.ts",              // Collocated unit tests
       "tests/integration/**/*.test.ts", // Integration tests
-      "packages/**/*.test.ts"          // Package tests
+      "packages/**/*.test.ts",         // Package tests
+      "scripts/screenshot.test.ts"     // Script tests (explicit)
     ],
     setupFiles: ["tests/setup.ts"]
   }
