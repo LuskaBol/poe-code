@@ -57,6 +57,7 @@
   },
   "packageManager": "npm@10.9.2",
   "dependencies": {
+    "@poe-code/agent-spawn": "*",
     "@poe-code/config-mutations": "*",
     "@poe-code/design-system": "*",
     "@poe-code/tiny-mcp-server": "*",
