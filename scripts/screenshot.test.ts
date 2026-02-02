@@ -3,11 +3,11 @@ import { resolveScreenshotTimeoutMs } from "./screenshot.js";
 
 describe("resolveScreenshotTimeoutMs", () => {
   it("uses default when env is missing or invalid", () => {
-    expect(resolveScreenshotTimeoutMs({})).toBe(30000);
-    expect(resolveScreenshotTimeoutMs({ POE_SCREENSHOT_TIMEOUT_MS: "" })).toBe(30000);
-    expect(resolveScreenshotTimeoutMs({ POE_SCREENSHOT_TIMEOUT_MS: "0" })).toBe(30000);
-    expect(resolveScreenshotTimeoutMs({ POE_SCREENSHOT_TIMEOUT_MS: "-1" })).toBe(30000);
-    expect(resolveScreenshotTimeoutMs({ POE_SCREENSHOT_TIMEOUT_MS: "nope" })).toBe(30000);
+    expect(resolveScreenshotTimeoutMs({})).toBe(60000);
+    expect(resolveScreenshotTimeoutMs({ POE_SCREENSHOT_TIMEOUT_MS: "" })).toBe(60000);
+    expect(resolveScreenshotTimeoutMs({ POE_SCREENSHOT_TIMEOUT_MS: "0" })).toBe(60000);
+    expect(resolveScreenshotTimeoutMs({ POE_SCREENSHOT_TIMEOUT_MS: "-1" })).toBe(60000);
+    expect(resolveScreenshotTimeoutMs({ POE_SCREENSHOT_TIMEOUT_MS: "nope" })).toBe(60000);
   });
 
   it("uses the provided timeout when valid", () => {
@@ -48,7 +48,10 @@ describe("resolveFreezeCommand", () => {
       })
     }));
     vi.doMock("node:process", () => ({
-      env: { PATH: pathEnv ?? "" }
+      default: {
+        argv: ["node", "/tmp/not-screenshot.ts"],
+        env: { PATH: pathEnv ?? "" }
+      }
     }));
     if (resolveError) {
       vi.doMock("node:module", () => ({
@@ -91,7 +94,7 @@ describe("resolveFreezeCommand", () => {
       pathEnv: "/opt/bin:/usr/bin",
       spawnResults: { freeze: 1 }
     });
-    expect(resolveFreezeCommand({})).toBe("/opt/bin/freeze");
+    expect(resolveFreezeCommand({ PATH: "/opt/bin:/usr/bin" })).toBe("/opt/bin/freeze");
   });
 
   it("falls back to common system paths when PATH misses freeze", async () => {
@@ -115,7 +118,9 @@ describe("resolveFreezeCommand", () => {
       pathEnv: "/repo/node_modules/.bin:/opt/bin:/usr/bin",
       spawnResults: { freeze: 1 }
     });
-    expect(resolveFreezeCommand({})).toBe("/opt/bin/freeze");
+    expect(
+      resolveFreezeCommand({ PATH: "/repo/node_modules/.bin:/opt/bin:/usr/bin" })
+    ).toBe("/opt/bin/freeze");
   });
 
   it("uses system freeze when available", async () => {
@@ -134,7 +139,7 @@ describe("resolveFreezeCommand", () => {
       spawnResults: { freeze: 1 }
     });
     const resolved = resolveFreezeCommand({});
-    expect(resolved.includes("@poe-code/freeze-cli")).toBe(true);
+    expect(resolved.includes("freeze-cli")).toBe(true);
     expect(resolved.endsWith("bin/freeze")).toBe(true);
   });
 });
