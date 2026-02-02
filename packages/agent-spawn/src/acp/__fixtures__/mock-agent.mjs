@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 
-const prdUrl = new URL("../../../../../.agents/tasks/prd-acp-spawn-adapters.json", import.meta.url);
-const prd = JSON.parse(await fs.readFile(prdUrl, "utf8"));
+const fixturesUrl = new URL("./sample-sessions.json", import.meta.url);
+const fixtures = JSON.parse(await fs.readFile(fixturesUrl, "utf8"));
 
 const mode = process.argv[2] ?? "codex";
 
@@ -10,13 +10,11 @@ if (mode === "fail") {
   process.exit(2);
 }
 
-const sampleFixtures = prd.sampleFixtures ?? {};
-
 const lines =
   mode === "codex"
-    ? sampleFixtures.codexSession
+    ? fixtures.codexSession
     : mode === "claude"
-      ? sampleFixtures.claudeSession
+      ? fixtures.claudeSession
       : undefined;
 
 if (!Array.isArray(lines) || !lines.every((line) => typeof line === "string")) {

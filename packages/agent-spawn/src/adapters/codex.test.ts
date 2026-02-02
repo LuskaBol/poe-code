@@ -17,13 +17,13 @@ async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
 }
 
 async function loadCodexSessionFixture(): Promise<string[]> {
-  const prdUrl = new URL("../../../../.agents/tasks/prd-acp-spawn-adapters.json", import.meta.url);
-  const prd = JSON.parse(await fs.readFile(prdUrl, "utf8")) as {
-    sampleFixtures?: { codexSession?: unknown };
+  const fixturesUrl = new URL("../acp/__fixtures__/sample-sessions.json", import.meta.url);
+  const fixtures = JSON.parse(await fs.readFile(fixturesUrl, "utf8")) as {
+    codexSession?: unknown;
   };
-  const session = prd.sampleFixtures?.codexSession;
+  const session = fixtures.codexSession;
   if (!Array.isArray(session) || !session.every((line) => typeof line === "string")) {
-    throw new Error("PRD fixture sampleFixtures.codexSession is missing or invalid");
+    throw new Error("Fixture codexSession is missing or invalid");
   }
   return session;
 }

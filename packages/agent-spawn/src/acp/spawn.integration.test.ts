@@ -43,13 +43,13 @@ type ExpectedAcpOutput = {
 };
 
 async function loadExpectedAcpOutput(): Promise<ExpectedAcpOutput> {
-  const prdUrl = new URL("../../../../.agents/tasks/prd-acp-spawn-adapters.json", import.meta.url);
-  const prd = JSON.parse(await fs.readFile(prdUrl, "utf8")) as {
-    sampleFixtures?: { expectedAcpOutput?: unknown };
+  const fixturesUrl = new URL("./__fixtures__/sample-sessions.json", import.meta.url);
+  const fixtures = JSON.parse(await fs.readFile(fixturesUrl, "utf8")) as {
+    expectedAcpOutput?: unknown;
   };
-  const expected = prd.sampleFixtures?.expectedAcpOutput as ExpectedAcpOutput | undefined;
+  const expected = fixtures.expectedAcpOutput as ExpectedAcpOutput | undefined;
   if (!expected || !Array.isArray(expected.fromCodex) || !Array.isArray(expected.fromClaude)) {
-    throw new Error("PRD fixture sampleFixtures.expectedAcpOutput is missing or invalid");
+    throw new Error("Fixture expectedAcpOutput is missing or invalid");
   }
   return expected;
 }
