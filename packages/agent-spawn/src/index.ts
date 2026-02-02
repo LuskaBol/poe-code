@@ -1,5 +1,12 @@
 export const agentSpawn = {};
 
+export {
+  runCommand,
+  type CommandRunner,
+  type CommandRunnerOptions,
+  type CommandRunnerResult
+} from "./run-command.js";
+
 export type {
   CliSpawnConfig,
   FileSpawnConfig,
