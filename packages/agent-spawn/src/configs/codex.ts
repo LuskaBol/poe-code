@@ -3,6 +3,7 @@ import type { CliSpawnConfig } from "../types.js";
 export const codexSpawnConfig: CliSpawnConfig = {
   kind: "cli",
   agentId: "codex",
+  // ACP adapter support: yes (adapter: "codex")
   adapter: "codex",
   promptFlag: "exec",
   modelFlag: "--model",

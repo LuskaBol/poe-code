@@ -1,14 +1,14 @@
 import { resolveAgentId } from "@poe-code/agent-defs";
 import type { SpawnConfig } from "../types.js";
 import { claudeCodeSpawnConfig } from "./claude-code.js";
-import { claudeDesktopSpawnConfig } from "./claude-desktop.js";
 import { codexSpawnConfig } from "./codex.js";
 import { openCodeSpawnConfig } from "./opencode.js";
 import { kimiSpawnConfig } from "./kimi.js";
 
+// ACP adapter support (spawn streaming):
+// - Supported (has `adapter`): claude-code, codex, opencode, kimi
 export const allSpawnConfigs: readonly SpawnConfig[] = [
   claudeCodeSpawnConfig,
-  claudeDesktopSpawnConfig,
   codexSpawnConfig,
   openCodeSpawnConfig,
   kimiSpawnConfig
