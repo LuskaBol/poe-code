@@ -1,9 +1,25 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, Plugin } from "vitest/config";
 import { loadTestEnv } from "./tests/test-env.js";
 import path from "path";
 import fs from "fs";
 
 loadTestEnv();
+
+// Plugin to load .hbs and .md files as raw text (like esbuild's text loader)
+function rawTextPlugin(): Plugin {
+  return {
+    name: "raw-text",
+    transform(code, id) {
+      if (id.endsWith(".hbs") || id.endsWith(".md")) {
+        const content = fs.readFileSync(id, "utf8");
+        return {
+          code: `export default ${JSON.stringify(content)};`,
+          map: null
+        };
+      }
+    }
+  };
+}
 
 function getPackageAliases(): Record<string, string> {
   const packagesDir = path.resolve(__dirname, "packages");
@@ -30,6 +46,7 @@ function getPackageAliases(): Record<string, string> {
 }
 
 export default defineConfig({
+  plugins: [rawTextPlugin()],
   resolve: {
     // Resolve workspace packages to source for tests (no build required)
     alias: getPackageAliases()
