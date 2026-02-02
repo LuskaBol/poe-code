@@ -1,20 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import fs from "node:fs/promises";
 import { adaptCodex } from "./codex.js";
-
-async function* fromArray(items: string[]): AsyncIterable<string> {
-  for (const item of items) {
-    yield item;
-  }
-}
-
-async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
-  const items: T[] = [];
-  for await (const item of iterable) {
-    items.push(item);
-  }
-  return items;
-}
+import { fromArray, collect } from "./test-utils.js";
 
 async function loadCodexSessionFixture(): Promise<string[]> {
   const fixturesUrl = new URL("../acp/__fixtures__/sample-sessions.json", import.meta.url);
@@ -221,8 +208,7 @@ describe("adaptCodex", () => {
     expect(first.title).toMatch(/\.\.\.$/);
   });
 
-  it("skips malformed JSON lines and continues", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  it("emits inline error event for malformed JSON and continues", async () => {
     const updates = await collect(
       adaptCodex(
         fromArray([
@@ -232,16 +218,15 @@ describe("adaptCodex", () => {
       )
     );
 
-    expect(updates).toEqual([
-      {
-        event: "tool_start",
-        id: "x",
-        kind: "think",
-        title: "thinking..."
-      }
-    ]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    warn.mockRestore();
+    expect(updates).toHaveLength(2);
+    expect(updates[0]).toMatchObject({ event: "error" });
+    expect((updates[0] as any).message).toContain("Malformed");
+    expect(updates[1]).toEqual({
+      event: "tool_start",
+      id: "x",
+      kind: "think",
+      title: "thinking..."
+    });
   });
 
   it("skips empty lines", async () => {
@@ -270,4 +255,6 @@ describe("adaptCodex", () => {
     );
     expect(updates).toEqual([]);
   });
+
+  
 });

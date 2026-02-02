@@ -1,19 +1,14 @@
 import type { AcpEvent } from "../acp/types.js";
-
-function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  if (maxLength <= 3) return text.slice(0, maxLength);
-  return `${text.slice(0, maxLength - 3)}...`;
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
+import { truncate, isNonEmptyString, extractThreadId } from "./utils.js";
 
 type CodexEvent = {
   type?: unknown;
   thread_id?: unknown;
   threadId?: unknown;
+  threadID?: unknown;
+  session_id?: unknown;
+  sessionId?: unknown;
+  sessionID?: unknown;
   usage?: unknown;
   item?: unknown;
 };
@@ -46,7 +41,12 @@ export async function* adaptCodex(
     try {
       event = JSON.parse(line) as CodexEvent;
     } catch (error) {
-      console.warn(`[adaptCodex] Skipping malformed JSON line: ${truncate(line, 200)}`, error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      yield {
+        event: "error",
+        message: `[adaptCodex] Malformed JSON line: ${truncate(line, 200)}`,
+        stack
+      };
       continue;
     }
 
@@ -54,11 +54,7 @@ export async function* adaptCodex(
     if (!isNonEmptyString(eventType)) continue;
 
     if (eventType === "thread.started") {
-      const maybeThreadId = isNonEmptyString(event.thread_id)
-        ? event.thread_id
-        : isNonEmptyString(event.threadId)
-          ? event.threadId
-          : undefined;
+      const maybeThreadId = extractThreadId(event);
       yield { event: "session_start", threadId: maybeThreadId };
       continue;
     }

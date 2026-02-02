@@ -1,4 +1,5 @@
 import type { AcpEvent } from "../acp/types.js";
+import { truncate, isNonEmptyString, extractThreadId } from "./utils.js";
 
 export const TOOL_KIND_MAP: Record<string, string> = {
   Read: "read",
@@ -11,19 +12,15 @@ export const TOOL_KIND_MAP: Record<string, string> = {
   Task: "think"
 };
 
-function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  if (maxLength <= 3) return text.slice(0, maxLength);
-  return `${text.slice(0, maxLength - 3)}...`;
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
 type ClaudeEvent = {
   type?: unknown;
   message?: unknown;
+  thread_id?: unknown;
+  threadId?: unknown;
+  threadID?: unknown;
+  session_id?: unknown;
+  sessionId?: unknown;
+  sessionID?: unknown;
   input_tokens?: unknown;
   output_tokens?: unknown;
   num_input_tokens?: unknown;
@@ -50,21 +47,40 @@ export async function* adaptClaude(
   lines: AsyncIterable<string>
 ): AsyncGenerator<AcpEvent> {
   const toolKindsById = new Map<string, string>();
+  let emittedSessionStart = false;
 
   for await (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
 
+    // Claude Code can emit non-JSON informational lines (especially in verbose mode).
+    // Ignore lines that don't look like JSON to avoid polluting output with adapter errors.
+    const firstChar = line[0];
+    if (firstChar !== "{" && firstChar !== "[") {
+      continue;
+    }
+
     let event: ClaudeEvent;
     try {
       event = JSON.parse(line) as ClaudeEvent;
     } catch (error) {
-      console.warn(`[adaptClaude] Skipping malformed JSON line: ${truncate(line, 200)}`, error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      yield {
+        event: "error",
+        message: `[adaptClaude] Malformed JSON line: ${truncate(line, 200)}`,
+        stack
+      };
       continue;
     }
 
     const eventType = event.type;
     if (!isNonEmptyString(eventType)) continue;
+
+    if (!emittedSessionStart) {
+      const threadId = extractThreadId(event);
+      emittedSessionStart = true;
+      yield { event: "session_start", threadId };
+    }
 
     if (eventType === "result") {
       const usage = (event.usage ?? {}) as {
