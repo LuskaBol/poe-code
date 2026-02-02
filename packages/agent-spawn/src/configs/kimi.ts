@@ -3,7 +3,14 @@ import type { CliSpawnConfig } from "../types.js";
 export const kimiSpawnConfig: CliSpawnConfig = {
   kind: "cli",
   agentId: "kimi",
-  adapter: "native",
+  // ACP adapter support: yes (adapter: "kimi").
+  // Kimi's `--output-format stream-json` emits OpenAI-style `{ role, content }` JSON
+  // (no `{ event, ... }` field), so it needs the Kimi adapter (not "native").
+  adapter: "kimi",
   promptFlag: "-p",
-  defaultArgs: ["--quiet"]
+  defaultArgs: ["--print", "--output-format", "stream-json"],
+  stdinMode: {
+    omitPrompt: true,
+    extraArgs: ["--input-format", "stream-json"]
+  }
 };
