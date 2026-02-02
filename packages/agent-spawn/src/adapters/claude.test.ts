@@ -1,20 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import fs from "node:fs/promises";
 import { adaptClaude } from "./claude.js";
-
-async function* fromArray(items: string[]): AsyncIterable<string> {
-  for (const item of items) {
-    yield item;
-  }
-}
-
-async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
-  const items: T[] = [];
-  for await (const item of iterable) {
-    items.push(item);
-  }
-  return items;
-}
+import { fromArray, collect } from "./test-utils.js";
 
 async function loadClaudeSessionFixture(): Promise<string[]> {
   const fixturesUrl = new URL("../acp/__fixtures__/sample-sessions.json", import.meta.url);
@@ -29,11 +16,31 @@ async function loadClaudeSessionFixture(): Promise<string[]> {
 }
 
 describe("adaptClaude", () => {
+  it("emits session_start once when sessionId is present", async () => {
+    const updates = await collect(
+      adaptClaude(
+        fromArray([
+          JSON.stringify({
+            type: "assistant",
+            sessionId: "ses_abc",
+            message: { content: [{ type: "text", text: "hello" }] }
+          })
+        ])
+      )
+    );
+
+    expect(updates).toEqual([
+      { event: "session_start", threadId: "ses_abc" },
+      { event: "agent_message", text: "hello" }
+    ]);
+  });
+
   it("adapts sampleFixtures.claudeSession from the PRD", async () => {
     const session = await loadClaudeSessionFixture();
     const events = await collect(adaptClaude(fromArray(session)));
 
     expect(events).toEqual([
+      { event: "session_start", threadId: undefined },
       {
         event: "agent_message",
         text: "I'll check the current directory structure."
@@ -89,6 +96,7 @@ describe("adaptClaude", () => {
     );
 
     expect(updates).toEqual([
+      { event: "session_start", threadId: undefined },
       { event: "agent_message", text: "hello" },
       { event: "agent_message", text: "world" }
     ]);
@@ -115,6 +123,7 @@ describe("adaptClaude", () => {
     );
 
     expect(events).toEqual([
+      { event: "session_start", threadId: undefined },
       {
         event: "tool_start",
         id: "tu_1",
@@ -138,6 +147,7 @@ describe("adaptClaude", () => {
     );
 
     expect(updates).toEqual([
+      { event: "session_start", threadId: undefined },
       {
         event: "tool_start",
         id: "tu_x",
@@ -159,6 +169,7 @@ describe("adaptClaude", () => {
     );
 
     expect(events).toEqual([
+      { event: "session_start", threadId: undefined },
       {
         event: "tool_start",
         id: "tu_1",
@@ -185,6 +196,7 @@ describe("adaptClaude", () => {
     );
 
     expect(updates).toEqual([
+      { event: "session_start", threadId: undefined },
       {
         kind: undefined,
         event: "tool_complete",
@@ -204,6 +216,7 @@ describe("adaptClaude", () => {
     );
 
     expect(updates).toEqual([
+      { event: "session_start", threadId: undefined },
       {
         event: "usage",
         inputTokens: 1,
@@ -213,19 +226,36 @@ describe("adaptClaude", () => {
     ]);
   });
 
-  it("skips malformed JSON lines and continues", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  it("emits inline error event for malformed JSON and continues", async () => {
     const updates = await collect(
       adaptClaude(
         fromArray([
-          "not json",
+          "{not json",
           '{"type":"assistant","message":{"content":[{"type":"text","text":"ok"}]}}'
         ])
       )
     );
 
-    expect(updates).toEqual([{ event: "agent_message", text: "ok" }]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    warn.mockRestore();
+    expect(updates).toHaveLength(3);
+    expect(updates[0]).toMatchObject({ event: "error" });
+    expect((updates[0] as any).message).toContain("Malformed");
+    expect(updates[1]).toEqual({ event: "session_start", threadId: undefined });
+    expect(updates[2]).toEqual({ event: "agent_message", text: "ok" });
+  });
+
+  it("ignores non-JSON lines (e.g. verbose stdout) and continues", async () => {
+    const updates = await collect(
+      adaptClaude(
+        fromArray([
+          "starting up...",
+          '{"type":"assistant","message":{"content":[{"type":"text","text":"ok"}]}}'
+        ])
+      )
+    );
+
+    expect(updates).toEqual([
+      { event: "session_start", threadId: undefined },
+      { event: "agent_message", text: "ok" }
+    ]);
   });
 });
