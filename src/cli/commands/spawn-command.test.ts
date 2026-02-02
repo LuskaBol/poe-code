@@ -175,7 +175,7 @@ describe("spawn command", () => {
     const plainChunks = chunks.map((chunk) => stripAnsi(chunk));
     expect(plainChunks).toEqual([
       "  → exec: npm test\n",
-      "  ✓ exec: result.txt\n",
+      "  ✓ exec\n",
       "✓ agent: Hi\n"
     ]);
     expect(logs.length).toBeGreaterThan(0);

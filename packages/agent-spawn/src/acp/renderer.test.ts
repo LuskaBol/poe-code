@@ -76,13 +76,13 @@ describe("acp/renderer", () => {
     expect(acp.renderToolStart).toHaveBeenCalledWith("read", "README.md");
   });
 
-  it("renders tool_complete via design-system", async () => {
+  it("renders tool_complete via design-system (kind only, no output)", async () => {
     const { renderAcpEvent } = await import("./renderer.js");
     const { acp } = await import("@poe-code/design-system");
 
     renderAcpEvent({ event: "tool_complete", kind: "read", path: "README.md" } as any);
 
-    expect(acp.renderToolComplete).toHaveBeenCalledWith("read", "README.md");
+    expect(acp.renderToolComplete).toHaveBeenCalledWith("read");
   });
 
   it("renders reasoning via design-system", async () => {

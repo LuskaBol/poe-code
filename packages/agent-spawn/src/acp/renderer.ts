@@ -25,10 +25,7 @@ export function renderAcpEvent(event: AcpEvent): void {
       );
       return;
     case "tool_complete":
-      acp.renderToolComplete(
-        (event as { kind: string }).kind,
-        (event as { path: string }).path
-      );
+      acp.renderToolComplete((event as { kind: string }).kind);
       return;
     case "reasoning":
       acp.renderReasoning((event as { text: string }).text);

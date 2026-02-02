@@ -115,8 +115,6 @@ describe("CLI spawn streaming integration", () => {
       logger: () => {}
     });
 
-    vi.useFakeTimers();
-
     const chunks: string[] = [];
     const spy = vi
       .spyOn(process.stdout, "write")
@@ -126,18 +124,15 @@ describe("CLI spawn streaming integration", () => {
       }) as unknown as typeof process.stdout.write);
 
     try {
-      const parsePromise = program.parseAsync([
+      await program.parseAsync([
         "node",
         "cli",
         "spawn",
         "codex",
         "hello"
       ]);
-      await vi.runAllTimersAsync();
-      await parsePromise;
     } finally {
       spy.mockRestore();
-      vi.useRealTimers();
     }
 
     expect(spawnChildProcess).toHaveBeenCalledTimes(1);
@@ -145,7 +140,7 @@ describe("CLI spawn streaming integration", () => {
     const plainChunks = chunks.map((chunk) => stripAnsi(chunk));
     expect(plainChunks).toEqual([
       "  → exec: npm test\n",
-      "  ✓ exec: result.txt\n",
+      "  ✓ exec\n",
       "✓ agent: Hi\n"
     ]);
   });

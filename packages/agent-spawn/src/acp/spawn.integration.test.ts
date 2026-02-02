@@ -18,8 +18,8 @@ vi.mock("@poe-code/design-system", () => {
       renderToolStart: vi.fn((kind: string, title: string) => {
         renderLog.push(["tool_start", kind, title]);
       }),
-      renderToolComplete: vi.fn((kind: string, path: string) => {
-        renderLog.push(["tool_complete", kind, path]);
+      renderToolComplete: vi.fn((kind: string) => {
+        renderLog.push(["tool_complete", kind]);
       }),
       renderReasoning: vi.fn((text: string) => {
         renderLog.push(["reasoning", text]);
@@ -211,9 +211,9 @@ describe("acp/spawnStreaming integration", () => {
     const log = (globalThis as any).__acpIntegrationRenderLog as unknown[];
     expect(log).toEqual([
       ["tool_start", "exec", "ls -la"],
-      ["tool_complete", "exec", "ls -la"],
+      ["tool_complete", "exec"],
       ["tool_start", "edit", "src/config.ts"],
-      ["tool_complete", "edit", "src/config.ts"],
+      ["tool_complete", "edit"],
       ["tool_start", "think", "thinking..."],
       ["reasoning", "I need to update the imports after the file edit."],
       ["agent_message", "I've updated the configuration file with the new settings."],
