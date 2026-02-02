@@ -11,6 +11,12 @@ import type {
 } from "../types.js";
 import { getConfigFormat, detectFormat } from "../formats/index.js";
 import { resolvePath } from "./path-utils.js";
+import {
+  isNotFound,
+  readFileIfExists,
+  pathExists,
+  createTimestamp
+} from "../fs-utils.js";
 
 // ============================================================================
 // Helper Functions
@@ -24,45 +30,6 @@ function resolveValue<T>(
     return (resolver as (ctx: MutationOptions) => T)(options);
   }
   return resolver;
-}
-
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
-}
-
-async function readFileIfExists(
-  fs: FileSystem,
-  target: string
-): Promise<string | null> {
-  try {
-    return await fs.readFile(target, "utf8");
-  } catch (error) {
-    if (isNotFound(error)) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-async function pathExists(fs: FileSystem, target: string): Promise<boolean> {
-  try {
-    await fs.stat(target);
-    return true;
-  } catch (error) {
-    if (isNotFound(error)) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-function createTimestamp(): string {
-  return new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
 }
 
 function createInvalidDocumentBackupPath(targetPath: string): string {
