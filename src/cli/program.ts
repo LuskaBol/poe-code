@@ -1,5 +1,4 @@
 import { Command, Help } from "commander";
-import { createRequire } from "node:module";
 import {
   createCliContainer,
   type CliContainer,
@@ -17,9 +16,7 @@ import { registerGenerateCommand } from "./commands/generate.js";
 import { registerMcpCommand } from "./commands/mcp.js";
 import { registerSkillCommand } from "./commands/skill.js";
 import { registerVersionOption } from "./commands/version.js";
-
-const require = createRequire(import.meta.url);
-const packageJson = require("../../package.json") as { version: string };
+import packageJson from "../../package.json" with { type: "json" };
 
 function formatHelpText(): string {
   const commandWidth = 11;
