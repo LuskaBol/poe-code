@@ -42,6 +42,7 @@ local_scripts/watch-diff.ts
 .agents/ralph/
 .ralph/
 .agents/
+.poe-code-ralph/
 openspec
 
 # E2E test logs
