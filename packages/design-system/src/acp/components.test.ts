@@ -127,9 +127,17 @@ describe("acp/components", () => {
 
   it("renderToolComplete prints a colored checkmark", async () => {
     const { renderToolComplete } = await import("./components.js");
-    const output = captureStdout(() => renderToolComplete("read", "README.md"));
+    const output = captureStdout(() => renderToolComplete("exec", "npm test"));
 
-    expect(stripAnsi(output)).toBe("  ✓ read: README.md\n");
+    expect(stripAnsi(output)).toBe("  ✓ exec: npm test\n");
+    expect(output).toContain("\u001b[33m");
+  });
+
+  it("renderToolComplete omits output for read operations", async () => {
+    const { renderToolComplete } = await import("./components.js");
+    const output = captureStdout(() => renderToolComplete("read", "full file contents here..."));
+
+    expect(stripAnsi(output)).toBe("  ✓ read\n");
     expect(output).toContain("\u001b[36m");
   });
 
