@@ -42,7 +42,14 @@ export function renderAcpEvent(event: AcpEvent): void {
       });
       return;
     case "error":
-      acp.renderError((event as { message: string }).message);
+      acp.renderError(
+        (() => {
+          const { message, stack } = event as { message: string; stack?: string };
+          return typeof stack === "string" && stack.length > 0
+            ? `${message}\n${stack}`
+            : message;
+        })()
+      );
       return;
     default:
       writeLine(text.muted(event.event));
@@ -53,13 +60,22 @@ export function renderAcpEvent(event: AcpEvent): void {
 export async function renderAcpStream(
   events: AsyncIterable<AcpEvent>
 ): Promise<void> {
+  let messageBuffer = "";
+
+  function flushBuffer(): void {
+    if (messageBuffer.length > 0) {
+      acp.renderAgentMessage(messageBuffer);
+      messageBuffer = "";
+    }
+  }
+
   for await (const event of events) {
     if (event.event === "agent_message") {
-      await acp.renderAgentMessage((event as { text: string }).text, {
-        streaming: true
-      });
+      messageBuffer += (event as { text: string }).text;
       continue;
     }
+    flushBuffer();
     renderAcpEvent(event);
   }
+  flushBuffer();
 }
