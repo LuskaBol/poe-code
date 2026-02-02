@@ -66,20 +66,12 @@ describe("acp/components", () => {
     expect(output).toContain("\u001b[33m");
   });
 
-  it("renderToolComplete prints a colored checkmark", async () => {
+  it("renderToolComplete prints a colored checkmark without output", async () => {
     const { renderToolComplete } = await import("./components.js");
-    const output = captureStdout(() => renderToolComplete("exec", "npm test"));
+    const output = captureStdout(() => renderToolComplete("exec"));
 
-    expect(stripAnsi(output)).toBe("  ✓ exec: npm test\n");
+    expect(stripAnsi(output)).toBe("  ✓ exec\n");
     expect(output).toContain("\u001b[33m");
-  });
-
-  it("renderToolComplete omits output for read operations", async () => {
-    const { renderToolComplete } = await import("./components.js");
-    const output = captureStdout(() => renderToolComplete("read", "full file contents here..."));
-
-    expect(stripAnsi(output)).toBe("  ✓ read\n");
-    expect(output).toContain("\u001b[36m");
   });
 
   it("renderReasoning prints a dim checkmark + truncated text (80 chars)", async () => {

@@ -34,11 +34,9 @@ export function renderToolStart(kind: string, title: string): void {
   writeLine(color(`  → ${kind}: ${title}`));
 }
 
-export function renderToolComplete(kind: string, title?: string): void {
+export function renderToolComplete(kind: string): void {
   const color = colorForKind(kind);
-  // For read operations, don't show the output (which contains full file contents)
-  const suffix = title && kind !== "read" ? `: ${title}` : "";
-  writeLine(color(`  ✓ ${kind}${suffix}`));
+  writeLine(color(`  ✓ ${kind}`));
 }
 
 export function renderReasoning(text: string): void {
