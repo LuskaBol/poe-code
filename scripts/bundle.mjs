@@ -57,6 +57,7 @@ await esbuild.build({
   sourcemap: true,
   packages: "bundle",
   plugins: [stripShebangPlugin],
+  loader: { ".md": "text", ".hbs": "text" },
 });
 
 console.log("Bundle complete: dist/index.js");

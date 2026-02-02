@@ -1,27 +1,30 @@
-import path from "node:path";
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import type { TemplateLoader } from "@poe-code/config-mutations";
 
-const templatesRoot = fileURLToPath(new URL("./templates", import.meta.url));
+let templatesCache: Record<string, string> | null = null;
 
-function resolveTemplatePath(templateId: string): string {
-  const resolved = path.resolve(templatesRoot, templateId);
-  const relative = path.relative(templatesRoot, resolved);
-
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`Invalid template id: ${templateId}`);
+async function getTemplates(): Promise<Record<string, string>> {
+  if (templatesCache) {
+    return templatesCache;
   }
-
-  return resolved;
+  // Lazy import templates as text (bundled by esbuild)
+  const poeGenerateTemplate = await import("./templates/poe-generate.md").then(
+    (m) => m.default
+  );
+  templatesCache = {
+    "poe-generate.md": poeGenerateTemplate,
+  };
+  return templatesCache;
 }
 
 export async function loadTemplate(templateId: string): Promise<string> {
-  const templatePath = resolveTemplatePath(templateId);
-  return readFile(templatePath, "utf8");
+  const templates = await getTemplates();
+  const template = templates[templateId];
+  if (!template) {
+    throw new Error(`Template not found: ${templateId}`);
+  }
+  return template;
 }
 
 export function createTemplateLoader(): TemplateLoader {
   return loadTemplate;
 }
-
