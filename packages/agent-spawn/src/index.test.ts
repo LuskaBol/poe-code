@@ -6,6 +6,7 @@ import {
   agentSpawn,
   getAdapter,
   readLines,
+  renderAcpStream,
   spawn,
   spawnStreaming
 } from "@poe-code/agent-spawn";
@@ -19,6 +20,7 @@ describe("@poe-code/agent-spawn", () => {
     expect(typeof spawn).toBe("function");
     expect(typeof spawnStreaming).toBe("function");
     expect(typeof readLines).toBe("function");
+    expect(typeof renderAcpStream).toBe("function");
     expect(typeof adaptCodex).toBe("function");
     expect(typeof adaptClaude).toBe("function");
     expect(typeof adaptNative).toBe("function");
