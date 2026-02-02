@@ -1,13 +1,17 @@
 import { adaptClaude } from "./claude.js";
 import { adaptCodex } from "./codex.js";
+import { adaptKimi } from "./kimi.js";
 import { adaptNative } from "./native.js";
+import { adaptOpenCode } from "./opencode.js";
 import type { AcpEvent, SessionUpdate } from "../acp/types.js";
 
 export { adaptCodex } from "./codex.js";
 export { adaptClaude } from "./claude.js";
+export { adaptKimi } from "./kimi.js";
 export { adaptNative } from "./native.js";
+export { adaptOpenCode } from "./opencode.js";
 
-export type AdapterType = "codex" | "claude" | "native";
+export type AdapterType = "codex" | "claude" | "kimi" | "native" | "opencode";
 
 export type AdapterOutput = AcpEvent | SessionUpdate;
 export type Adapter = (lines: AsyncIterable<string>) => AsyncGenerator<AdapterOutput>;
@@ -15,7 +19,9 @@ export type Adapter = (lines: AsyncIterable<string>) => AsyncGenerator<AdapterOu
 const adapters = {
   codex: adaptCodex,
   claude: adaptClaude,
-  native: adaptNative
+  kimi: adaptKimi,
+  native: adaptNative,
+  opencode: adaptOpenCode
 } satisfies Record<AdapterType, Adapter>;
 
 export function getAdapter(type: AdapterType): Adapter {
