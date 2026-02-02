@@ -23,7 +23,7 @@ import {
   type LoggerFactory
 } from "./logger.js";
 import { ErrorLogger } from "./error-logger.js";
-import { createDefaultCommandRunner } from "./command-runner.js";
+import { runCommand } from "@poe-code/agent-spawn";
 import type { PromptFn, LoggerFn } from "./types.js";
 import { text, symbols } from "@poe-code/design-system";
 import type { HttpClient } from "./http.js";
@@ -104,8 +104,7 @@ export function createCliContainer(
       };
     });
 
-  const commandRunner =
-    dependencies.commandRunner ?? createDefaultCommandRunner();
+  const commandRunner = dependencies.commandRunner ?? runCommand;
 
   const promptLibrary = createPromptLibrary();
 

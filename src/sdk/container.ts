@@ -9,7 +9,7 @@ import { createPromptLibrary } from "../cli/prompts.js";
 import { createOptionResolvers } from "../cli/options.js";
 import { createLoggerFactory } from "../cli/logger.js";
 import { ErrorLogger } from "../cli/error-logger.js";
-import { createDefaultCommandRunner } from "../cli/command-runner.js";
+import { runCommand } from "@poe-code/agent-spawn";
 import { getDefaultProviders } from "../providers/index.js";
 import { createPoeCodeCommandRunner } from "../cli/poe-code-command-runner.js";
 import {
@@ -115,7 +115,7 @@ export function createSdkContainer(options?: SdkContainerOptions): CliContainer 
     registry.register(adapter);
   }
 
-  const baseRunner = createDefaultCommandRunner();
+  const baseRunner = runCommand;
 
   // Create container with wrapped runner
   let container: CliContainer = null as unknown as CliContainer;

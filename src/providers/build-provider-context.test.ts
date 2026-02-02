@@ -1,25 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
-import { Volume, createFsFromVolume } from "memfs";
+import { createMockFs } from "@poe-code/config-mutations/testing";
 import { createCliContainer } from "../cli/container.js";
 import {
   buildProviderContext,
   createExecutionResources
 } from "../cli/commands/shared.js";
 import { createProviderStub } from "../../tests/provider-stub.js";
-import type { FileSystem } from "../utils/file-system.js";
 
 const cwd = "/repo";
 const homeDir = "/home/test";
 
-function createMemFs(): FileSystem {
-  const vol = new Volume();
-  vol.mkdirSync(homeDir, { recursive: true });
-  return createFsFromVolume(vol).promises as unknown as FileSystem;
-}
-
 describe("buildProviderContext", () => {
   it("skips resolving provider paths", () => {
-    const fs = createMemFs();
+    const fs = createMockFs({}, homeDir);
     const container = createCliContainer({
       fs,
       prompts: vi.fn(),

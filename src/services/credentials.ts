@@ -1,4 +1,5 @@
 import path from "node:path";
+import { isNotFound } from "@poe-code/config-mutations";
 import type { FileSystem } from "../utils/file-system.js";
 
 export interface CredentialsStoreOptions {
@@ -226,13 +227,5 @@ function isRecord(value: unknown): value is Record<string, any> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
-}
 
 const EMPTY_DOCUMENT = `${JSON.stringify({}, null, 2)}\n`;

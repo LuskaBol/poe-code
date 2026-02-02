@@ -1,4 +1,5 @@
 import path from "node:path";
+import { isNotFound } from "@poe-code/config-mutations";
 import type { FileSystem } from "./file-system.js";
 
 type TimestampProvider = () => string;
@@ -76,11 +77,3 @@ async function copy(
   await fs.writeFile(to, content);
 }
 
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
-}

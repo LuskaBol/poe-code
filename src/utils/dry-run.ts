@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { basename, extname } from "node:path";
 import { createTwoFilesPatch } from "diff";
 import chalk from "chalk";
+import { isNotFound } from "@poe-code/config-mutations";
 import type { FileSystem } from "./file-system.js";
 
 const REDACTED_PLACEHOLDER = "<redacted>";
@@ -441,11 +442,3 @@ function bufferFromView(view: NodeJS.ArrayBufferView): Buffer {
   return Buffer.from(view.buffer, view.byteOffset, view.byteLength);
 }
 
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
-}

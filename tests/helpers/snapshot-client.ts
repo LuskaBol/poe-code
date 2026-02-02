@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { join, dirname } from "node:path";
+import { isNotFound } from "@poe-code/config-mutations";
 import type { FileSystem } from "../../src/utils/file-system.js";
 import type {
   LlmClient,
@@ -220,11 +221,3 @@ function sanitizeModelName(model: string): string {
   return result;
 }
 
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
-}

@@ -1,20 +1,10 @@
-export interface CommandRunnerResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
+import type { CommandRunner, CommandRunnerResult } from "@poe-code/agent-spawn";
 
-export interface CommandRunnerOptions {
-  cwd?: string;
-  env?: Record<string, string | undefined>;
-  stdin?: string | Buffer;
-}
-
-export type CommandRunner = (
-  command: string,
-  args: string[],
-  options?: CommandRunnerOptions
-) => Promise<CommandRunnerResult>;
+export type {
+  CommandRunner,
+  CommandRunnerOptions,
+  CommandRunnerResult
+} from "@poe-code/agent-spawn";
 
 export function formatCommandRunnerResult(
   result: CommandRunnerResult

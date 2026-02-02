@@ -1,21 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { Volume, createFsFromVolume } from "memfs";
+import { createMockFs } from "@poe-code/config-mutations/testing";
 import { createCliContainer } from "../cli/container.js";
-import type { FileSystem } from "../utils/file-system.js";
 
 const cwd = "/repo";
 const homeDir = "/home/test";
 
-function createMemFs(): FileSystem {
-  const vol = new Volume();
-  vol.mkdirSync(homeDir, { recursive: true });
-  return createFsFromVolume(vol).promises as unknown as FileSystem;
-}
-
 describe("provider filtering", () => {
   it("omits disabled providers from the registry list", () => {
     const container = createCliContainer({
-      fs: createMemFs(),
+      fs: createMockFs({}, homeDir),
       prompts: async () => ({}),
       env: { cwd, homeDir },
       logger: () => {}

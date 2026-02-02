@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { Volume, createFsFromVolume } from "memfs";
 import path from "node:path";
 import type { FileSystem } from "../utils/file-system.js";
 import {
@@ -14,15 +13,10 @@ import { createTestCommandContext } from "../../tests/test-command-context.js";
 import type { ProviderContext } from "../cli/service-registry.js";
 import { createLoggerFactory } from "../cli/logger.js";
 import {
+  createMockFs,
   parseToml,
   serializeToml
 } from "@poe-code/config-mutations/testing";
-
-function createMemFs(): { fs: FileSystem; vol: Volume } {
-  const vol = new Volume();
-  const fs = createFsFromVolume(vol);
-  return { fs: fs.promises as unknown as FileSystem, vol };
-}
 
 const withProviderPrefix = (model: string): string =>
   `${PROVIDER_NAME}/${stripModelNamespace(model)}`;
@@ -31,7 +25,6 @@ const DEFAULT_PROVIDER_MODEL = withProviderPrefix(DEFAULT_KIMI_MODEL);
 
 describe("kimi service", () => {
   let fs: FileSystem;
-  let vol: Volume;
   const homeDir = "/home/user";
   const configPath = path.join(homeDir, ".kimi", "config.toml");
   let env = createCliEnvironment({ cwd: homeDir, homeDir });
@@ -41,8 +34,7 @@ describe("kimi service", () => {
   });
 
   beforeEach(() => {
-    ({ fs, vol } = createMemFs());
-    vol.mkdirSync(homeDir, { recursive: true });
+    fs = createMockFs({}, homeDir);
     env = createCliEnvironment({ cwd: homeDir, homeDir });
   });
 

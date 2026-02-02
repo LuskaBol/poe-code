@@ -1,32 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { Volume, createFsFromVolume } from "memfs";
 import path from "node:path";
 import type { FileSystem } from "../utils/file-system.js";
 import * as codexService from "./codex.js";
-import { parseToml } from "@poe-code/config-mutations/testing";
+import { createMockFs, parseToml, type MockFileSystem } from "@poe-code/config-mutations/testing";
 import type { ProviderContext } from "../cli/service-registry.js";
 import { createCliEnvironment } from "../cli/environment.js";
 import { createTestCommandContext } from "../../tests/test-command-context.js";
 import { DEFAULT_CODEX_MODEL, stripModelNamespace } from "../cli/constants.js";
 import { createLoggerFactory } from "../cli/logger.js";
 
-function createMemFs(): { fs: FileSystem; vol: Volume } {
-  const vol = new Volume();
-  const fs = createFsFromVolume(vol);
-  return { fs: fs.promises as unknown as FileSystem, vol };
-}
-
 describe("codex service", () => {
   let fs: FileSystem;
-  let vol: Volume;
+  let mockFs: MockFileSystem;
   const home = "/home/user";
   const configDir = path.join(home, ".codex");
   const configPath = path.join(configDir, "config.toml");
   let env = createCliEnvironment({ cwd: home, homeDir: home });
 
   beforeEach(async () => {
-    ({ fs, vol } = createMemFs());
-    vol.mkdirSync(home, { recursive: true });
+    mockFs = createMockFs({}, home);
+    fs = mockFs;
     env = createCliEnvironment({ cwd: home, homeDir: home });
   });
 
@@ -283,7 +276,7 @@ describe("codex service", () => {
     await configureCodex();
 
     // Find backup file by pattern
-    const files = vol.toJSON();
+    const files = mockFs.files;
     const backupFile = Object.keys(files).find((f) =>
       f.startsWith(`${configPath}.backup-`)
     );
@@ -324,7 +317,7 @@ describe("codex service", () => {
     });
 
     // Find backup file by pattern
-    const files = vol.toJSON();
+    const files = mockFs.files;
     const backupFile = Object.keys(files).find((f) =>
       f.startsWith(`${configPath}.backup-`)
     );
