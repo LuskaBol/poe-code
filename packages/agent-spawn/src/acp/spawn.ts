@@ -31,7 +31,19 @@ function captureUsage(event: AcpEvent): SpawnUsage | undefined {
 }
 
 export function spawnStreaming(options: SpawnStreamingOptions): SpawnStreamingResult {
-  const { binaryName, spawnConfig } = resolveConfig(options.agentId);
+  const { agentId, binaryName, spawnConfig } = resolveConfig(options.agentId);
+
+  if (spawnConfig === undefined) {
+    throw new Error(`Agent "${agentId}" has no spawn config.`);
+  }
+
+  if (spawnConfig.kind !== "cli") {
+    throw new Error(`Agent "${agentId}" does not support CLI spawn.`);
+  }
+
+  if (!binaryName) {
+    throw new Error(`Agent "${agentId}" has no binaryName.`);
+  }
 
   const args: string[] = [spawnConfig.promptFlag];
 
@@ -80,6 +92,7 @@ export function spawnStreaming(options: SpawnStreamingOptions): SpawnStreamingRe
         const maybeThreadId = (output as { threadId?: unknown }).threadId;
         if (typeof maybeThreadId === "string" && maybeThreadId.length > 0) {
           result.threadId = maybeThreadId;
+          result.sessionId = maybeThreadId;
         }
       }
 

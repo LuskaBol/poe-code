@@ -72,17 +72,18 @@ describe("acp/spawnStreaming", () => {
     vi.clearAllMocks();
   });
 
-  it("streams adapted ACP events and captures threadId + usage", async () => {
+  it("streams OpenCode JSON events via the opencode adapter", async () => {
     const mock = createMockChildProcess({
       stdoutLines: [
-        JSON.stringify({ event: "session_start", threadId: "abc" }),
-        JSON.stringify({ event: "agent_message", text: "hi" }),
         JSON.stringify({
-          event: "usage",
-          inputTokens: 1,
-          outputTokens: 2,
-          cachedTokens: 3,
-          costUsd: 0.01
+          type: "text",
+          sessionID: "ses_abc",
+          part: { type: "text", messageID: "msg_1", text: "hi" }
+        }),
+        JSON.stringify({
+          type: "step_finish",
+          sessionID: "ses_abc",
+          part: { tokens: { input: 1, output: 2, cache: { read: 3, write: 0 } } }
         })
       ],
       stderr: "warn\n",
@@ -98,15 +99,16 @@ describe("acp/spawnStreaming", () => {
     });
 
     await expect(collect(events)).resolves.toEqual([
-      { event: "session_start", threadId: "abc" },
+      { event: "session_start", threadId: "ses_abc" },
       { event: "agent_message", text: "hi" },
-      { event: "usage", inputTokens: 1, outputTokens: 2, cachedTokens: 3, costUsd: 0.01 }
+      { event: "usage", inputTokens: 1, outputTokens: 2, cachedTokens: 3 }
     ]);
 
     await expect(done).resolves.toMatchObject({
       exitCode: 0,
-      threadId: "abc",
-      usage: { inputTokens: 1, outputTokens: 2, cachedTokens: 3, costUsd: 0.01 },
+      threadId: "ses_abc",
+      sessionId: "ses_abc",
+      usage: { inputTokens: 1, outputTokens: 2, cachedTokens: 3 },
       stderr: "warn\n"
     });
 
@@ -150,6 +152,7 @@ describe("acp/spawnStreaming", () => {
     await expect(done).resolves.toMatchObject({
       exitCode: 0,
       threadId: "t1",
+      sessionId: "t1",
       usage: { inputTokens: 1, outputTokens: 2, cachedTokens: 0 }
     });
 
@@ -173,5 +176,15 @@ describe("acp/spawnStreaming", () => {
     ).toThrow('Unknown agent "unknown".');
     expect(spawnMock).not.toHaveBeenCalled();
   });
-});
 
+  it("throws error if agent has no spawn config", () => {
+    const spawnMock = vi.mocked(spawnChildProcess);
+    expect(() =>
+      spawnStreaming({
+        agentId: "claude-desktop",
+        prompt: "hello"
+      })
+    ).toThrow('Agent "claude-desktop" has no spawn config.');
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+});

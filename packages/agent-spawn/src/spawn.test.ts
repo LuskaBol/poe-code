@@ -54,9 +54,15 @@ describe("spawn", () => {
   });
 
   it("throws error if agent ID cannot be resolved", async () => {
-    await expect(spawn("unknown", { prompt: "hello" })).rejects.toThrow(
-      'Unknown agent "unknown".'
-    );
+    await expect(spawn("unknown", { prompt: "test" })).rejects.toThrow(/Unknown agent/);
+    await expect(spawn("unknown", { prompt: "test" })).rejects.not.toThrow(/has no spawn config/);
+    expect(vi.mocked(spawnChildProcess)).not.toHaveBeenCalled();
+  });
+
+  it("throws error if agent has no spawn config", async () => {
+    await expect(spawn("claude-desktop", { prompt: "test" })).rejects.toThrow(/has no spawn config/);
+    await expect(spawn("claude-desktop", { prompt: "test" })).rejects.not.toThrow(/Unknown agent/);
+    expect(vi.mocked(spawnChildProcess)).not.toHaveBeenCalled();
   });
 
   it("spawns CLI using promptFlag + prompt + defaultArgs + options.args", async () => {
@@ -65,7 +71,7 @@ describe("spawn", () => {
     );
 
     const result = await spawn("claude-code", {
-      prompt: "hello",
+      prompt: "test",
       args: ["--extra", "arg"]
     });
 
@@ -75,7 +81,7 @@ describe("spawn", () => {
     expect(command).toBe("claude");
     expect(args).toEqual([
       claudeCodeSpawnConfig.promptFlag,
-      "hello",
+      "test",
       ...claudeCodeSpawnConfig.defaultArgs,
       "--extra",
       "arg"
@@ -99,5 +105,17 @@ describe("spawn", () => {
       "o3",
       ...codexSpawnConfig.defaultArgs
     ]);
+  });
+
+  it("passes cwd option to the spawned process", async () => {
+    const spawnMock = vi.mocked(spawnChildProcess).mockReturnValue(
+      createMockChildProcess({ exitCode: 0 })
+    );
+
+    await spawn("codex", { prompt: "hello", cwd: "/tmp/poe-agent-spawn" });
+
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    const [, , options] = spawnMock.mock.calls[0];
+    expect(options).toEqual(expect.objectContaining({ cwd: "/tmp/poe-agent-spawn" }));
   });
 });

@@ -12,8 +12,8 @@ vi.mock("@poe-code/design-system", () => {
 
   return {
     acp: {
-      renderAgentMessage: vi.fn(async (text: string, options?: unknown) => {
-        renderLog.push(["agent_message", text, options]);
+      renderAgentMessage: vi.fn((text: string) => {
+        renderLog.push(["agent_message", text]);
       }),
       renderToolStart: vi.fn((kind: string, title: string) => {
         renderLog.push(["tool_start", kind, title]);
@@ -216,7 +216,7 @@ describe("acp/spawnStreaming integration", () => {
       ["tool_complete", "edit", "src/config.ts"],
       ["tool_start", "think", "thinking..."],
       ["reasoning", "I need to update the imports after the file edit."],
-      ["agent_message", "I've updated the configuration file with the new settings.", { streaming: true }],
+      ["agent_message", "I've updated the configuration file with the new settings."],
       ["usage", { input: 1500, output: 350, cached: 800, costUsd: undefined }]
     ]);
 

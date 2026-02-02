@@ -19,7 +19,7 @@ export async function spawn(
   }
 
   const spawnConfig = getSpawnConfig(resolvedAgentId);
-  if (!spawnConfig) {
+  if (spawnConfig === undefined) {
     throw new Error(`Agent "${resolvedAgentId}" has no spawn config.`);
   }
 
@@ -45,6 +45,7 @@ export async function spawn(
   }
 
   const child = spawnChildProcess(binaryName, args, {
+    cwd: options.cwd,
     stdio: ["inherit", "pipe", "pipe"]
   });
 
@@ -75,4 +76,3 @@ export async function spawn(
     });
   });
 }
-
