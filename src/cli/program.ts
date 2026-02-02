@@ -17,6 +17,7 @@ import { registerGenerateCommand } from "./commands/generate.js";
 import { registerMcpCommand } from "./commands/mcp.js";
 import { registerSkillCommand } from "./commands/skill.js";
 import { registerVersionOption } from "./commands/version.js";
+import { registerRalphCommand } from "./commands/ralph.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require("../../package.json") as { version: string };
@@ -67,6 +68,9 @@ function formatHelpText(): string {
     "",
     cmd("skill", "[subcommand]") + "      Skill directory commands",
     example("poe-code skill configure claude-code"),
+    "",
+    cmd("ralph", "[subcommand]") + "      Run Ralph iterations",
+    example("poe-code ralph build 5"),
     "",
     text.section("Options:"),
     opt("-y, --yes", "Accept defaults without prompting"),
@@ -223,6 +227,7 @@ function bootstrapProgram(container: CliContainer): Command {
   registerLoginCommand(program, container);
   registerMcpCommand(program, container);
   registerSkillCommand(program, container);
+  registerRalphCommand(program, container);
 
   program.action(() => {
     program.outputHelp();
