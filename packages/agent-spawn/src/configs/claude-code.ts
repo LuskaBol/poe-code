@@ -3,6 +3,7 @@ import type { CliSpawnConfig } from "../types.js";
 export const claudeCodeSpawnConfig: CliSpawnConfig = {
   kind: "cli",
   agentId: "claude-code",
+  // ACP adapter support: yes (adapter: "claude")
   adapter: "claude",
   promptFlag: "-p",
   modelFlag: "--model",

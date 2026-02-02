@@ -1,14 +1,14 @@
 import { allAgents, resolveAgentId } from "@poe-code/agent-defs";
-import type { CliSpawnConfig } from "../types.js";
+import type { SpawnConfig } from "../types.js";
 import { getSpawnConfig } from "./index.js";
 
-export interface ResolvedCliSpawnConfig {
+export interface ResolvedSpawnConfig {
   agentId: string;
-  binaryName: string;
-  spawnConfig: CliSpawnConfig;
+  binaryName?: string;
+  spawnConfig?: SpawnConfig;
 }
 
-export function resolveConfig(agentId: string): ResolvedCliSpawnConfig {
+export function resolveConfig(agentId: string): ResolvedSpawnConfig {
   const resolvedAgentId = resolveAgentId(agentId);
   if (!resolvedAgentId) {
     throw new Error(`Unknown agent "${agentId}".`);
@@ -20,19 +20,7 @@ export function resolveConfig(agentId: string): ResolvedCliSpawnConfig {
   }
 
   const spawnConfig = getSpawnConfig(resolvedAgentId);
-  if (!spawnConfig) {
-    throw new Error(`Agent "${resolvedAgentId}" has no spawn config.`);
-  }
-
-  if (spawnConfig.kind !== "cli") {
-    throw new Error(`Agent "${resolvedAgentId}" does not support CLI spawn.`);
-  }
-
   const binaryName = agentDefinition.binaryName;
-  if (!binaryName) {
-    throw new Error(`Agent "${resolvedAgentId}" has no binaryName.`);
-  }
 
   return { agentId: resolvedAgentId, binaryName, spawnConfig };
 }
-
