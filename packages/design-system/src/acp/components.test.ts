@@ -158,6 +158,6 @@ describe("acp/components", () => {
     const output = captureStdout(() => renderError("nope"));
 
     expect(stripAnsi(output)).toBe("✗ nope\n");
-    expect(output).toContain("\u001b[31m");
+    expect(output).toContain("\u001b[31m✗ nope");
   });
 });
