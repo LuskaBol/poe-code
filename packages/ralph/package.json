@@ -1,0 +1,35 @@
+{
+  "name": "@poe-code/ralph",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/simulation.d.ts",
+      "import": "./dist/testing/simulation.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc && node dist/internal/verify-templates.js"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "@poe-code/agent-spawn": "*",
+    "@poe-code/config-mutations": "*",
+    "proper-lockfile": "^4.1.2",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/proper-lockfile": "^4.1.4"
+  }
+}
