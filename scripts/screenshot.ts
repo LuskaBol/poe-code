@@ -1,11 +1,19 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, existsSync, accessSync, constants } from "node:fs";
+import {
+  mkdirSync,
+  existsSync,
+  accessSync,
+  constants,
+  mkdtempSync,
+  writeFileSync,
+  rmSync
+} from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { Transform } from "node:stream";
 import { Command } from "commander";
+import os from "node:os";
 
 export function stripLeadingDashes(value: string): string {
   let cleaned = value;
@@ -117,7 +125,7 @@ export function sanitizeOutputChunk(chunk: string): string {
   return result;
 }
 
-const DEFAULT_SCREENSHOT_TIMEOUT_MS = 30000;
+const DEFAULT_SCREENSHOT_TIMEOUT_MS = 60000;
 
 export function resolveScreenshotTimeoutMs(
   env: NodeJS.ProcessEnv
@@ -249,27 +257,6 @@ function resolveExecutable(candidate: string): string | null {
   }
 }
 
-function createSanitizer(): Transform {
-  return new Transform({
-    transform(chunk, _encoding, callback) {
-      const text = Buffer.isBuffer(chunk)
-        ? chunk.toString("utf8")
-        : String(chunk);
-      this.push(sanitizeOutputChunk(text));
-      callback();
-    }
-  });
-}
-
-function pipeSanitized(
-  source: NodeJS.ReadableStream,
-  destination: NodeJS.WritableStream
-): void {
-  const sanitizer = createSanitizer();
-  source.pipe(sanitizer);
-  sanitizer.pipe(destination, { end: false });
-}
-
 type SpawnSpec = {
   command: string;
   args: string[];
@@ -381,70 +368,82 @@ export async function runScreenshot(
     stdio: ["ignore", "pipe", "pipe"],
     env: spawnSpec.env
   });
-  const freezeEnv: NodeJS.ProcessEnv = {
-    ...process.env,
-    PATH: buildSystemPath(process.env)
-  };
-  const freezeProcess = spawn(
-    resolveFreezeCommand(process.env),
-    ["-o", outputPath, "--window", "--padding", "20", "--language", "ansi"],
-    {
-      stdio: ["pipe", "inherit", "inherit"],
-      env: freezeEnv
-    }
-  );
-
-  if (
-    !commandProcess.stdout ||
-    !commandProcess.stderr ||
-    !freezeProcess.stdin
-  ) {
-    throw new Error("Unable to pipe command output into freeze.");
+  if (!commandProcess.stdout || !commandProcess.stderr) {
+    throw new Error("Unable to capture command output.");
   }
 
-  if (options.header !== false) {
-    freezeProcess.stdin.write(
-      buildCommandHeader(target.displayCommand, target.displayArgs)
-    );
-  }
-  pipeSanitized(commandProcess.stdout, freezeProcess.stdin);
-  pipeSanitized(commandProcess.stderr, freezeProcess.stdin);
-
-  const commandExit = waitForExit(commandProcess).then((code) => {
-    freezeProcess.stdin?.end();
-    return code;
+  const capturedChunks: string[] = [];
+  commandProcess.stdout.on("data", (chunk) => {
+    capturedChunks.push(sanitizeOutputChunk(String(chunk)));
   });
-  const freezeExit = waitForExit(freezeProcess);
+  commandProcess.stderr.on("data", (chunk) => {
+    capturedChunks.push(sanitizeOutputChunk(String(chunk)));
+  });
 
   const timeoutMs = resolveScreenshotTimeoutMs(process.env);
   const timeout = createTimeout(timeoutMs, () => {
     if (!commandProcess.killed) {
       commandProcess.kill("SIGTERM");
     }
-    if (!freezeProcess.killed) {
-      freezeProcess.kill("SIGTERM");
-    }
   });
 
-  const completion = Promise.all([commandExit, freezeExit]);
   let commandCode: number;
-  let freezeCode: number;
   try {
-    [commandCode, freezeCode] = (await Promise.race([
-      completion,
+    commandCode = (await Promise.race([
+      waitForExit(commandProcess),
       timeout.promise
-    ])) as [number, number];
+    ])) as number;
   } finally {
     timeout.cancel();
-    completion.catch(() => undefined);
   }
 
-  if (commandCode !== 0) {
-    const label = [target.command, ...target.args].join(" ");
-    throw new Error(`${label} failed with exit code ${commandCode}`);
-  }
-  if (freezeCode !== 0) {
-    throw new Error(`freeze failed with exit code ${freezeCode}`);
+  const header =
+    options.header !== false
+      ? buildCommandHeader(target.displayCommand, target.displayArgs)
+      : "";
+  const transcript = `${header}${capturedChunks.join("")}`;
+
+  const transcriptDir = mkdtempSync(
+    path.join(os.tmpdir(), "poe-code-screenshot-")
+  );
+  const transcriptPath = path.join(transcriptDir, "output.ansi");
+  writeFileSync(transcriptPath, transcript, { encoding: "utf8" });
+
+  const freezeEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    PATH: buildSystemPath(process.env)
+  };
+
+  const freezeProcess = spawn(
+    resolveFreezeCommand(process.env),
+    [
+      transcriptPath,
+      "-o",
+      outputPath,
+      "--window",
+      "--padding",
+      "20",
+      "--language",
+      "ansi"
+    ],
+    {
+      stdio: ["ignore", "inherit", "inherit"],
+      env: freezeEnv
+    }
+  );
+
+  const freezeCode = await waitForExit(freezeProcess);
+
+  try {
+    if (commandCode !== 0) {
+      const label = [target.command, ...target.args].join(" ");
+      throw new Error(`${label} failed with exit code ${commandCode}`);
+    }
+    if (freezeCode !== 0) {
+      throw new Error(`freeze failed with exit code ${freezeCode}`);
+    }
+  } finally {
+    rmSync(transcriptDir, { recursive: true, force: true });
   }
 
   process.stdout.write(`${outputPath}\n`);
