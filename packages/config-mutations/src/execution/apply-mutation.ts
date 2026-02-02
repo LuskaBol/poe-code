@@ -84,6 +84,8 @@ function describeMutation(kind: string, targetPath?: string): string {
   switch (kind) {
     case "ensureDirectory":
       return `Create ${displayPath}`;
+    case "removeDirectory":
+      return `Remove directory ${displayPath}`;
     case "backup":
       return `Backup ${displayPath}`;
     case "templateWrite":
@@ -162,6 +164,8 @@ export async function applyMutation(
   switch (mutation.kind) {
     case "ensureDirectory":
       return applyEnsureDirectory(mutation, context, options);
+    case "removeDirectory":
+      return applyRemoveDirectory(mutation, context, options);
     case "removeFile":
       return applyRemoveFile(mutation, context, options);
     case "chmod":
@@ -217,6 +221,63 @@ async function applyEnsureDirectory(
       effect: "mkdir",
       detail: existed ? "noop" : "create"
     },
+    details
+  };
+}
+
+async function applyRemoveDirectory(
+  mutation: Extract<Mutation, { kind: "removeDirectory" }>,
+  context: MutationContext,
+  options: MutationOptions
+): Promise<{ outcome: MutationOutcome; details: MutationDetails }> {
+  const rawPath = resolveValue(mutation.path, options);
+  const targetPath = resolvePath(rawPath, context.homeDir, context.pathMapper);
+
+  const details: MutationDetails = {
+    kind: mutation.kind,
+    label: mutation.label ?? describeMutation(mutation.kind, targetPath),
+    targetPath
+  };
+
+  const existed = await pathExists(context.fs, targetPath);
+  if (!existed) {
+    return {
+      outcome: { changed: false, effect: "none", detail: "noop" },
+      details
+    };
+  }
+
+  if (typeof context.fs.rm !== "function") {
+    return {
+      outcome: { changed: false, effect: "none", detail: "noop" },
+      details
+    };
+  }
+
+  if (mutation.force) {
+    if (!context.dryRun) {
+      await context.fs.rm(targetPath, { recursive: true, force: true });
+    }
+    return {
+      outcome: { changed: true, effect: "delete", detail: "delete" },
+      details
+    };
+  }
+
+  const entries = await context.fs.readdir(targetPath);
+  if (entries.length > 0) {
+    return {
+      outcome: { changed: false, effect: "none", detail: "noop" },
+      details
+    };
+  }
+
+  if (!context.dryRun) {
+    await context.fs.rm(targetPath, { recursive: true, force: true });
+  }
+
+  return {
+    outcome: { changed: true, effect: "delete", detail: "delete" },
     details
   };
 }

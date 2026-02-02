@@ -26,7 +26,12 @@ export interface FileSystem {
   ): Promise<void>;
   mkdir(path: string, options?: { recursive: boolean }): Promise<void>;
   unlink(path: string): Promise<void>;
+  rm?(
+    path: string,
+    options?: { recursive?: boolean; force?: boolean }
+  ): Promise<void>;
   stat(path: string): Promise<{ mode?: number }>;
+  readdir(path: string): Promise<string[]>;
   chmod?(path: string, mode: number): Promise<void>;
 }
 
@@ -142,6 +147,12 @@ export interface EnsureDirectoryMutation extends BaseMutation {
   path: ValueResolver<string>;
 }
 
+export interface RemoveDirectoryMutation extends BaseMutation {
+  kind: "removeDirectory";
+  path: ValueResolver<string>;
+  force?: boolean;
+}
+
 export interface RemoveFileMutation extends BaseMutation {
   kind: "removeFile";
   target: ValueResolver<string>;
@@ -187,6 +198,7 @@ export type Mutation =
   | ConfigPruneMutation
   | ConfigTransformMutation
   | EnsureDirectoryMutation
+  | RemoveDirectoryMutation
   | RemoveFileMutation
   | ChmodMutation
   | BackupMutation

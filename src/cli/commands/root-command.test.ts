@@ -47,6 +47,8 @@ describe("root command", () => {
     expect(plainOutput).toContain("Commands:");
     expect(plainOutput).toContain("[agent]");
     expect(plainOutput).toContain("<agent>");
+    expect(plainOutput).toContain("skill");
+    expect(plainOutput).toContain("Skill directory commands");
     expect(plainOutput).not.toContain("[service]");
     expect(plainOutput).not.toContain("<service>");
     expect(plainOutput).not.toContain("unconfigure<agent>");

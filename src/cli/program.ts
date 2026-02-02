@@ -15,6 +15,7 @@ import { registerUnconfigureCommand } from "./commands/unconfigure.js";
 import { registerTestCommand } from "./commands/test.js";
 import { registerGenerateCommand } from "./commands/generate.js";
 import { registerMcpCommand } from "./commands/mcp.js";
+import { registerSkillCommand } from "./commands/skill.js";
 import { registerVersionOption } from "./commands/version.js";
 
 const require = createRequire(import.meta.url);
@@ -63,6 +64,9 @@ function formatHelpText(): string {
     "",
     cmd("mcp", "[subcommand]") + "        MCP server commands",
     example("poe-code mcp configure claude-code"),
+    "",
+    cmd("skill", "[subcommand]") + "      Skill directory commands",
+    example("poe-code skill configure claude-code"),
     "",
     text.section("Options:"),
     opt("-y, --yes", "Accept defaults without prompting"),
@@ -218,6 +222,7 @@ function bootstrapProgram(container: CliContainer): Command {
   registerUnconfigureCommand(program, container);
   registerLoginCommand(program, container);
   registerMcpCommand(program, container);
+  registerSkillCommand(program, container);
 
   program.action(() => {
     program.outputHelp();

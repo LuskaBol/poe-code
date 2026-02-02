@@ -1,5 +1,6 @@
 import type {
   EnsureDirectoryMutation,
+  RemoveDirectoryMutation,
   RemoveFileMutation,
   ChmodMutation,
   BackupMutation,
@@ -20,6 +21,15 @@ export interface RemoveOptions {
   whenEmpty?: boolean;
   /** Only remove if content matches regex */
   whenContentMatches?: RegExp;
+  /** Optional human-readable label for logging */
+  label?: string;
+}
+
+export interface RemoveDirectoryOptions {
+  /** Directory path (must start with ~) */
+  path: ValueResolver<string>;
+  /** Remove directory even when not empty */
+  force?: boolean;
   /** Optional human-readable label for logging */
   label?: string;
 }
@@ -58,6 +68,17 @@ function remove(options: RemoveOptions): RemoveFileMutation {
   };
 }
 
+function removeDirectory(
+  options: RemoveDirectoryOptions
+): RemoveDirectoryMutation {
+  return {
+    kind: "removeDirectory",
+    path: options.path,
+    force: options.force,
+    label: options.label
+  };
+}
+
 function chmod(options: ChmodOptions): ChmodMutation {
   return {
     kind: "chmod",
@@ -78,6 +99,7 @@ function backup(options: BackupOptions): BackupMutation {
 export const fileMutation = {
   ensureDirectory,
   remove,
+  removeDirectory,
   chmod,
   backup
 };

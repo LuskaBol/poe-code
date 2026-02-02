@@ -131,6 +131,36 @@ export function createMockFs(
       throw error;
     },
 
+    async readdir(dirPath: string): Promise<string[]> {
+      const absolutePath = expandPath(dirPath, homeDir);
+
+      if (absolutePath in files) {
+        const error = new Error(`ENOTDIR: not a directory, scandir '${absolutePath}'`);
+        (error as NodeJS.ErrnoException).code = "ENOTDIR";
+        throw error;
+      }
+
+      if (!directories.has(absolutePath)) {
+        const error = new Error(`ENOENT: no such file or directory, scandir '${absolutePath}'`);
+        (error as NodeJS.ErrnoException).code = "ENOENT";
+        throw error;
+      }
+
+      const entries = new Set<string>();
+      for (const filePath of Object.keys(files)) {
+        if (path.dirname(filePath) === absolutePath) {
+          entries.add(path.basename(filePath));
+        }
+      }
+      for (const dir of directories) {
+        if (dir !== absolutePath && path.dirname(dir) === absolutePath) {
+          entries.add(path.basename(dir));
+        }
+      }
+
+      return Array.from(entries);
+    },
+
     async chmod(filePath: string, mode: number): Promise<void> {
       void mode; // In mock fs, we don't actually store mode changes
       const absolutePath = expandPath(filePath, homeDir);
