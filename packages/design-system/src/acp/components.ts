@@ -25,47 +25,8 @@ function writeLine(line: string): void {
 
 const AGENT_PREFIX = `${chalk.green.bold("✓")} agent: `;
 
-export interface StreamingOptions {
-  characterDelay?: number;
-}
-
-export function renderAgentMessage(text: string): void;
-export function renderAgentMessage(
-  text: string,
-  options: { streaming: true | StreamingOptions }
-): Promise<void>;
-export function renderAgentMessage(
-  text: string,
-  options?: { streaming?: boolean | StreamingOptions }
-): void | Promise<void> {
-  if (options?.streaming) {
-    const streamingOptions = typeof options.streaming === "object"
-      ? options.streaming
-      : undefined;
-    return renderAgentMessageStreaming(text, streamingOptions);
-  }
-
+export function renderAgentMessage(text: string): void {
   writeLine(`${AGENT_PREFIX}${text}`);
-}
-
-export async function renderAgentMessageStreaming(
-  text: string,
-  options?: StreamingOptions
-): Promise<void> {
-  const characterDelay = options?.characterDelay ?? 10;
-
-  process.stdout.write(AGENT_PREFIX);
-
-  for (const char of text) {
-    process.stdout.write(char);
-    if (characterDelay > 0) {
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, characterDelay);
-      });
-    }
-  }
-
-  process.stdout.write("\n");
 }
 
 export function renderToolStart(kind: string, title: string): void {

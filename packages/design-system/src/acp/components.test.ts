@@ -58,65 +58,6 @@ describe("acp/components", () => {
     expect(output).toContain("\u001b[1m");
   });
 
-  it("renderAgentMessageStreaming prints prefix then streams characters", async () => {
-    const { renderAgentMessageStreaming } = await import("./components.js");
-
-    vi.useFakeTimers();
-
-    const chunks: string[] = [];
-    const spy = vi
-      .spyOn(process.stdout, "write")
-      .mockImplementation(((chunk: unknown) => {
-        chunks.push(String(chunk));
-        return true;
-      }) as unknown as typeof process.stdout.write);
-
-    try {
-      const promise = renderAgentMessageStreaming("Hi", { characterDelay: 10 });
-      await vi.runAllTimersAsync();
-      await promise;
-    } finally {
-      spy.mockRestore();
-      vi.useRealTimers();
-    }
-
-    const plainChunks = chunks.map((chunk) => stripAnsi(chunk));
-    const output = plainChunks.join("");
-
-    expect(output).toBe("✓ agent: Hi\n");
-    expect(plainChunks).toEqual([
-      "✓ agent: ",
-      "H",
-      "i",
-      "\n"
-    ]);
-  });
-
-  it("renderAgentMessageStreaming prints just prefix and newline for empty text", async () => {
-    const { renderAgentMessageStreaming } = await import("./components.js");
-
-    vi.useFakeTimers();
-
-    const chunks: string[] = [];
-    const spy = vi
-      .spyOn(process.stdout, "write")
-      .mockImplementation(((chunk: unknown) => {
-        chunks.push(String(chunk));
-        return true;
-      }) as unknown as typeof process.stdout.write);
-
-    try {
-      const promise = renderAgentMessageStreaming("", { characterDelay: 10 });
-      await vi.runAllTimersAsync();
-      await promise;
-    } finally {
-      spy.mockRestore();
-      vi.useRealTimers();
-    }
-
-    expect(chunks.map((chunk) => stripAnsi(chunk))).toEqual(["✓ agent: ", "\n"]);
-  });
-
   it("renderToolStart prints a colored arrow based on kind", async () => {
     const { renderToolStart } = await import("./components.js");
     const output = captureStdout(() => renderToolStart("exec", "npm test"));
