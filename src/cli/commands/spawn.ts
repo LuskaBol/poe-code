@@ -1,6 +1,9 @@
 import path from "node:path";
 import type { Command } from "commander";
 import type { CliContainer } from "../container.js";
+import { renderAcpStream } from "@poe-code/agent-spawn";
+import { allAgents, resolveAgentId } from "@poe-code/agent-defs";
+import { text } from "@poe-code/design-system";
 import {
   createExecutionResources,
   resolveCommandFlags,
@@ -11,6 +14,7 @@ import {
 } from "./shared.js";
 import type { SpawnCommandOptions } from "../../providers/spawn-options.js";
 import { spawnCore } from "../../sdk/spawn-core.js";
+import { spawn as spawnSdk } from "../../sdk/spawn.js";
 
 export interface CustomSpawnHandlerContext {
   container: CliContainer;
@@ -139,55 +143,134 @@ export function registerSpawnCommand(
       resources.logger.intro(`spawn ${canonicalService}`);
       const canonicalHandler = options.handlers?.[canonicalService];
       if (canonicalHandler) {
-        await canonicalHandler({
-          container,
-          service: canonicalService,
-          options: spawnOptions,
-          flags,
-          resources
+        try {
+          await canonicalHandler({
+            container,
+            service: canonicalService,
+            options: spawnOptions,
+            flags,
+            resources
+          });
+          return;
+        } finally {
+          resources.context.finalize();
+        }
+      }
+
+      try {
+        if (flags.dryRun) {
+          // spawnCore already logs the dry run details.
+          await spawnCore(container, canonicalService, spawnOptions, {
+            dryRun: true,
+            verbose: flags.verbose
+          });
+          return;
+        }
+
+        const { events, result } = spawnSdk(canonicalService, {
+          prompt: spawnOptions.prompt,
+          args: spawnOptions.args,
+          model: spawnOptions.model,
+          cwd: spawnOptions.cwd
         });
+
+        await renderAcpStream(events);
+
+        const final = await result;
+
+        if (final.exitCode !== 0) {
+          const detail = final.stderr.trim() || final.stdout.trim();
+          const suffix = detail ? `: ${detail}` : "";
+          throw new Error(
+            `${adapter.label} spawn failed with exit code ${final.exitCode}${suffix}`
+          );
+        }
+
+        const trimmedStdout = final.stdout.trim();
+        if (trimmedStdout) {
+          resources.logger.info(trimmedStdout);
+        } else {
+          const trimmedStderr = final.stderr.trim();
+          if (trimmedStderr) {
+            resources.logger.info(trimmedStderr);
+          } else {
+            resources.logger.info(`${adapter.label} spawn completed.`);
+          }
+        }
+
+        if (final.threadId) {
+          const resolvedId = resolveAgentId(canonicalService) ?? canonicalService;
+          const agentDefinition = allAgents.find((agent) => agent.id === resolvedId);
+          const binaryName = agentDefinition?.binaryName;
+          if (binaryName) {
+            const resumeCwd = spawnOptions.cwd ?? process.cwd();
+            const resumeCommand =
+              `${binaryName} resume -C ${shlexQuote(resumeCwd)} ${final.threadId}`;
+            resources.logger.info(text.muted(`\nResume: ${resumeCommand}`));
+          }
+        }
+      } finally {
         resources.context.finalize();
-        return;
       }
-
-      // Use SDK core spawn implementation
-      const result = await spawnCore(container, canonicalService, spawnOptions, {
-        dryRun: flags.dryRun,
-        verbose: flags.verbose
-      });
-
-      // Handle dry run - spawnCore already logged the message
-      if (flags.dryRun) {
-        resources.context.finalize();
-        return;
-      }
-
-      // Handle result output
-      if (result.exitCode !== 0) {
-        const detail = result.stderr.trim() || result.stdout.trim();
-        const suffix = detail ? `: ${detail}` : "";
-        throw new Error(
-          `${adapter.label} spawn failed with exit code ${result.exitCode}${suffix}`
-        );
-      }
-
-      const trimmedStdout = result.stdout.trim();
-      if (trimmedStdout) {
-        resources.logger.info(trimmedStdout);
-        resources.context.finalize();
-        return;
-      }
-
-      const trimmedStderr = result.stderr.trim();
-      if (trimmedStderr) {
-        resources.logger.info(trimmedStderr);
-        resources.context.finalize();
-        return;
-      }
-
-      resources.logger.info(`${adapter.label} spawn completed.`);
-      resources.context.finalize();
     });
+}
+
+function shlexQuote(value: string): string {
+  if (value.length === 0) {
+    return "''";
+  }
+
+  let isSafe = true;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!isSafeShellChar(value.charCodeAt(index))) {
+      isSafe = false;
+      break;
+    }
+  }
+
+  if (isSafe) {
+    return value;
+  }
+
+  let output = "'";
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === "'") {
+      output += `'"'"'`;
+      continue;
+    }
+    output += char;
+  }
+  output += "'";
+  return output;
+}
+
+function isSafeShellChar(code: number): boolean {
+  if (code >= 48 && code <= 57) {
+    return true;
+  }
+  if (code >= 65 && code <= 90) {
+    return true;
+  }
+  if (code >= 97 && code <= 122) {
+    return true;
+  }
+
+  switch (code) {
+    case 95: // _
+    case 64: // @
+    case 37: // %
+    case 43: // +
+    case 61: // =
+    case 58: // :
+    case 44: // ,
+    case 46: // .
+    case 47: // /
+    case 45: // -
+      return true;
+    default:
+      return false;
+  }
 }
 
 function resolveSpawnWorkingDirectory(
