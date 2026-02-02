@@ -140,6 +140,7 @@ export interface UsageEvent {
 export interface ErrorEvent {
   event: "error";
   message: string;
+  stack?: string;
   _meta?: Record<string, unknown>;
 }
 
