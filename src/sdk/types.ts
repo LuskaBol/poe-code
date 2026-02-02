@@ -22,6 +22,10 @@ export interface SpawnResult {
   stderr: string;
   /** Exit code from the CLI process */
   exitCode: number;
+  /** Thread identifier from streaming agents (if available) */
+  threadId?: string;
+  /** Backward-compatible alias for threadId */
+  sessionId?: string;
 }
 
 export interface GenerateOptions {
