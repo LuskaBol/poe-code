@@ -112,5 +112,5 @@ export function renderUsage(tokens: {
 }
 
 export function renderError(message: string): void {
-  writeLine(`${chalk.red("✗")} ${message}`);
+  writeLine(chalk.red(`✗ ${message}`));
 }
