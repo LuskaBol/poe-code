@@ -6,20 +6,15 @@ import { readFile } from "node:fs/promises";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(currentDir, "..");
 
-// External dependencies that should NOT be bundled (they're on npm)
-const externalDeps = [
-  // Main package deps
-  "chalk",
-  "commander",
-  "diff",
-  "mustache",
-  "semver",
-  // Workspace package deps (transitive)
-  "jsonc-parser",
-  "smol-toml",
-  // Node built-ins
-  "node:*",
-];
+// Read external deps from root package.json - these are runtime deps users install
+const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
+const allDeps = Object.keys(packageJson.dependencies || {});
+
+// Filter out workspace packages - they should be bundled, not external
+const runtimeDeps = allDeps.filter((dep) => !dep.startsWith("@poe-code/"));
+
+// External dependencies: runtime deps from package.json + Node built-ins
+const externalDeps = [...runtimeDeps, "node:*"];
 
 // Plugin to strip shebangs from source files
 const stripShebangPlugin = {
