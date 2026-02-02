@@ -10,6 +10,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      '**/dist/**',
       'vscode-extension/out/**',
       'vscode-extension/node_modules/**',
       '**/*.d.ts',

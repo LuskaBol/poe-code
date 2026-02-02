@@ -10,6 +10,21 @@ describe("getSpawnConfig", () => {
     expect(getSpawnConfig("codex")?.agentId).toBe("codex");
   });
 
+  it("includes adapter metadata for cli agents", () => {
+    expect(getSpawnConfig("claude-code")).toEqual(
+      expect.objectContaining({ kind: "cli", agentId: "claude-code", adapter: "claude" })
+    );
+    expect(getSpawnConfig("codex")).toEqual(
+      expect.objectContaining({ kind: "cli", agentId: "codex", adapter: "codex" })
+    );
+    expect(getSpawnConfig("opencode")).toEqual(
+      expect.objectContaining({ kind: "cli", agentId: "opencode", adapter: "native" })
+    );
+    expect(getSpawnConfig("kimi")).toEqual(
+      expect.objectContaining({ kind: "cli", agentId: "kimi", adapter: "native" })
+    );
+  });
+
   it("returns the claude-desktop file spawn config", () => {
     const config = getSpawnConfig("claude-desktop");
     expect(config).toEqual(

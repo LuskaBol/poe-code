@@ -18,6 +18,7 @@
     "dist"
   ],
   "dependencies": {
-    "@poe-code/agent-defs": "*"
+    "@poe-code/agent-defs": "*",
+    "@poe-code/design-system": "*"
   }
 }

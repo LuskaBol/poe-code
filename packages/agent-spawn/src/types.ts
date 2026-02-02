@@ -1,3 +1,5 @@
+import type { AdapterType } from "./adapters/index.js";
+
 export interface SpawnOptions {
   prompt: string;
   cwd?: string;
@@ -6,10 +8,19 @@ export interface SpawnOptions {
   useStdin?: boolean;
 }
 
+export interface SpawnUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens?: number;
+  costUsd?: number;
+}
+
 export interface SpawnResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  threadId?: string;
+  usage?: SpawnUsage;
 }
 
 export interface SpawnLogger {
@@ -30,6 +41,7 @@ export interface StdinMode {
 export interface CliSpawnConfig {
   kind: "cli";
   agentId: string;
+  adapter: AdapterType;
   promptFlag: string;
   defaultArgs: string[];
   stdinMode?: StdinMode;
@@ -44,4 +56,3 @@ export interface FileSpawnConfig {
 }
 
 export type SpawnConfig = CliSpawnConfig | FileSpawnConfig;
-

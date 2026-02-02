@@ -3,6 +3,7 @@ import type { CliSpawnConfig } from "../types.js";
 export const claudeCodeSpawnConfig: CliSpawnConfig = {
   kind: "cli",
   agentId: "claude-code",
+  adapter: "claude",
   promptFlag: "-p",
   modelFlag: "--model",
   defaultArgs: [
@@ -11,11 +12,11 @@ export const claudeCodeSpawnConfig: CliSpawnConfig = {
     "--permission-mode",
     "acceptEdits",
     "--output-format",
-    "text"
+    "stream-json",
+    "--verbose"
   ],
   stdinMode: {
     omitPrompt: true,
     extraArgs: ["--input-format", "text"]
   }
 };
-

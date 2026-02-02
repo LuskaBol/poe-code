@@ -14,6 +14,9 @@ export type { LoggerOutput } from "./components/logger.js";
 export { helpFormatter, formatCommand, formatUsage, formatOption, formatCommandList, formatOptionList } from "./components/help-formatter.js";
 export type { CommandInfo, OptionInfo } from "./components/help-formatter.js";
 
+// ACP rendering
+export * as acp from "./acp/index.js";
+
 // Prompts
 export * as prompts from "./prompts/index.js";
 export { intro, outro, note, select, text as promptText, confirm, password, spinner, isCancel, cancel, log } from "./prompts/index.js";

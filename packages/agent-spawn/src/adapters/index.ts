@@ -1,0 +1,27 @@
+import { adaptClaude } from "./claude.js";
+import { adaptCodex } from "./codex.js";
+import { adaptNative } from "./native.js";
+import type { AcpEvent, SessionUpdate } from "../acp/types.js";
+
+export { adaptCodex } from "./codex.js";
+export { adaptClaude } from "./claude.js";
+export { adaptNative } from "./native.js";
+
+export type AdapterType = "codex" | "claude" | "native";
+
+export type AdapterOutput = AcpEvent | SessionUpdate;
+export type Adapter = (lines: AsyncIterable<string>) => AsyncGenerator<AdapterOutput>;
+
+const adapters = {
+  codex: adaptCodex,
+  claude: adaptClaude,
+  native: adaptNative
+} satisfies Record<AdapterType, Adapter>;
+
+export function getAdapter(type: AdapterType): Adapter {
+  const adapter = (adapters as Record<string, Adapter | undefined>)[type];
+  if (!adapter) {
+    throw new Error(`Unknown adapter "${String(type)}".`);
+  }
+  return adapter;
+}

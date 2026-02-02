@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] [Unified Spawn via ACP](docs/acp-spawn-plan.md)
+- [ ] Unified Spawn via ACP (PRD: .agents/tasks/prd-acp-spawn-adapters.json)
 - [x] [MCP Server](docs/mcp-server-spec.md)
 - [ ] [Usage Command](docs/usage-command-plan.md)
 - [ ] [Spawn Modes](docs/spawn-modes-plan.md)

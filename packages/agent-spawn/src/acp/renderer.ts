@@ -1,0 +1,65 @@
+import { acp, text } from "@poe-code/design-system";
+import type { AcpEvent } from "./types.js";
+
+function writeLine(line: string): void {
+  process.stdout.write(`${line}\n`);
+}
+
+/**
+ * Render a single ACP event using design-system rendering primitives.
+ *
+ * Example:
+ * `await renderAcpStream(spawnStreaming(...).events)`
+ */
+export function renderAcpEvent(event: AcpEvent): void {
+  switch (event.event) {
+    case "session_start":
+      return;
+    case "agent_message":
+      acp.renderAgentMessage((event as { text: string }).text);
+      return;
+    case "tool_start":
+      acp.renderToolStart(
+        (event as { kind: string }).kind,
+        (event as { title: string }).title
+      );
+      return;
+    case "tool_complete":
+      acp.renderToolComplete(
+        (event as { kind: string }).kind,
+        (event as { path: string }).path
+      );
+      return;
+    case "reasoning":
+      acp.renderReasoning((event as { text: string }).text);
+      return;
+    case "usage":
+      acp.renderUsage({
+        input: (event as { inputTokens: number }).inputTokens,
+        output: (event as { outputTokens: number }).outputTokens,
+        cached: (event as { cachedTokens?: number }).cachedTokens,
+        costUsd: (event as { costUsd?: number }).costUsd
+      });
+      return;
+    case "error":
+      acp.renderError((event as { message: string }).message);
+      return;
+    default:
+      writeLine(text.muted(event.event));
+      return;
+  }
+}
+
+export async function renderAcpStream(
+  events: AsyncIterable<AcpEvent>
+): Promise<void> {
+  for await (const event of events) {
+    if (event.event === "agent_message") {
+      await acp.renderAgentMessage((event as { text: string }).text, {
+        streaming: true
+      });
+      continue;
+    }
+    renderAcpEvent(event);
+  }
+}
