@@ -123,6 +123,15 @@ describe("acp/renderer", () => {
     expect(acp.renderError).toHaveBeenCalledWith("nope");
   });
 
+  it("includes stack trace when present on error events", async () => {
+    const { renderAcpEvent } = await import("./renderer.js");
+    const { acp } = await import("@poe-code/design-system");
+
+    renderAcpEvent({ event: "error", message: "nope", stack: "stack line 1" } as any);
+
+    expect(acp.renderError).toHaveBeenCalledWith("nope\nstack line 1");
+  });
+
   it("renders unknown event types as muted text showing the type", async () => {
     const { renderAcpEvent } = await import("./renderer.js");
     const { acp } = await import("@poe-code/design-system");
@@ -133,7 +142,7 @@ describe("acp/renderer", () => {
     expect(acp.renderAgentMessage).not.toHaveBeenCalled();
   });
 
-  it("renderAcpStream iterates and calls renderAcpEvent for each event", async () => {
+  it("renderAcpStream buffers consecutive agent_message events and flushes at end", async () => {
     const { renderAcpStream } = await import("./renderer.js");
     const { acp } = await import("@poe-code/design-system");
 
@@ -144,8 +153,26 @@ describe("acp/renderer", () => {
 
     await renderAcpStream(fromArray(events as any[]));
 
+    expect(acp.renderAgentMessage).toHaveBeenCalledTimes(1);
+    expect(acp.renderAgentMessage).toHaveBeenCalledWith("ab");
+  });
+
+  it("renderAcpStream flushes buffer when non-agent_message event arrives", async () => {
+    const { renderAcpStream } = await import("./renderer.js");
+    const { acp } = await import("@poe-code/design-system");
+
+    const events = [
+      { event: "agent_message", text: "hello " },
+      { event: "agent_message", text: "world" },
+      { event: "tool_start", kind: "read", title: "file.txt" },
+      { event: "agent_message", text: "done" }
+    ];
+
+    await renderAcpStream(fromArray(events as any[]));
+
     expect(acp.renderAgentMessage).toHaveBeenCalledTimes(2);
-    expect(acp.renderAgentMessage).toHaveBeenNthCalledWith(1, "a", { streaming: true });
-    expect(acp.renderAgentMessage).toHaveBeenNthCalledWith(2, "b", { streaming: true });
+    expect(acp.renderAgentMessage).toHaveBeenNthCalledWith(1, "hello world");
+    expect(acp.renderAgentMessage).toHaveBeenNthCalledWith(2, "done");
+    expect(acp.renderToolStart).toHaveBeenCalledWith("read", "file.txt");
   });
 });

@@ -73,6 +73,9 @@
     ],
     "fromClaude": [
       {
+        "event": "session_start"
+      },
+      {
         "event": "agent_message",
         "text": "I'll check the current directory structure."
       },
