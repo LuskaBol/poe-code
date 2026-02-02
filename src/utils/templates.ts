@@ -26,5 +26,17 @@ export async function loadTemplate(relativePath: string): Promise<string> {
     return customLoader(relativePath);
   }
   const templatePath = path.join(templateRoot, relativePath);
-  return readFile(templatePath, "utf8");
+  try {
+    return await readFile(templatePath, "utf8");
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code: string }).code === "ENOENT"
+    ) {
+      throw new Error(`Template not found: ${relativePath}`);
+    }
+    throw error;
+  }
 }
