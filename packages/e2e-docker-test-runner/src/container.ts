@@ -5,8 +5,7 @@ import { homedir } from 'node:os';
 import type { Engine } from './types.js';
 import { detectEngine } from './engine.js';
 import { getApiKey } from './credentials.js';
-
-export const DEFAULT_IMAGE = 'node:22';
+import { ensureImage } from './image.js';
 export const MOUNT_TARGET = '/workspace';
 
 // Cache directories
@@ -174,26 +173,12 @@ export interface RunResult {
 export function buildContainerScript(commands: string[]): string {
   return [
     'set -e',
-    `workspace_dir="${MOUNT_TARGET}"`,
-    'build_dir=$(mktemp -d)',
-    'cleanup_build_dir() { rm -rf "$build_dir"; }',
-    'trap cleanup_build_dir EXIT',
-    // Clean up /root except cached dirs
+    // Clean up /root state from previous runs (but keep cached dirs)
     'find /root -mindepth 1 -maxdepth 1 ! -name ".npm" ! -name ".cache" ! -name ".local" -exec rm -rf {} + 2>/dev/null || true',
     'mkdir -p /root/.poe-code/logs',
-    // Install uv if not cached
-    'command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --quiet',
-    '[ -f $HOME/.local/bin/env ] && . $HOME/.local/bin/env || true',
-    // Add common paths to PATH
-    'export PATH="$HOME/.local/bin:$HOME/.claude/local/bin:$PATH"',
-    // Copy workspace, build, install
-    'tar -C "$workspace_dir" --exclude=node_modules --exclude=.git -cf - . | tar -C "$build_dir" -xf -',
-    'cd "$build_dir"',
-    'npm install',
-    'npm run build',
-    'npm install -g .',
-    'cd "$workspace_dir"',
-    // Now run the actual commands
+    // Add paths (uv is pre-installed in image)
+    'export PATH="/root/.local/bin:/root/.claude/local/bin:$PATH"',
+    // Run commands
     ...commands,
   ].join('; ');
 }
@@ -211,6 +196,7 @@ export interface DockerArgsConfig {
   cacheConfig: CacheConfig;
   apiKey: string | null;
   containerScript: string;
+  image: string;
 }
 
 /** Build docker command arguments */
@@ -235,7 +221,7 @@ export function buildDockerArgs(config: DockerArgsConfig): string[] {
     args.push('-e', 'POE_CODE_STDERR_LOGS=1');
   }
 
-  args.push(DEFAULT_IMAGE, 'sh', '-lc', config.containerScript);
+  args.push(config.image, 'sh', '-lc', config.containerScript);
 
   return args;
 }
@@ -253,6 +239,9 @@ export function runInContainer(commands: string[], options: { verbose?: boolean 
   const apiKey = getApiKey();
   const containerScript = buildContainerScript(commands);
 
+  // Build or reuse cached image
+  const image = ensureImage(runConfig.engine, workspace, { verbose, context: runConfig.context });
+
   const dockerArgs = buildDockerArgs({
     engine: runConfig.engine,
     context: runConfig.context,
@@ -264,6 +253,7 @@ export function runInContainer(commands: string[], options: { verbose?: boolean 
     },
     apiKey,
     containerScript,
+    image,
   });
 
   if (verbose) {

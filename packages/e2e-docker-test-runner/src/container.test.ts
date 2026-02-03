@@ -5,9 +5,9 @@ import {
   buildContainerScript,
   buildDockerArgs,
   MOUNT_TARGET,
-  DEFAULT_IMAGE,
   type ColimaProfile,
 } from './container.js';
+import { IMAGE_NAME } from './image.js';
 
 describe('parseColimaOutput', () => {
   it('parses single profile', () => {
@@ -95,31 +95,24 @@ describe('buildContainerScript', () => {
     expect(script).toMatch(/^set -e/);
   });
 
-  it('sets workspace_dir to mount target', () => {
+  it('sets up PATH for uv binaries', () => {
     const script = buildContainerScript([]);
-    expect(script).toContain(`workspace_dir="${MOUNT_TARGET}"`);
+    expect(script).toContain('export PATH="/root/.local/bin');
   });
 
-  it('includes uv installation', () => {
+  it('creates poe-code logs directory', () => {
     const script = buildContainerScript([]);
-    expect(script).toContain('curl -LsSf https://astral.sh/uv/install.sh');
-  });
-
-  it('includes npm install and build steps', () => {
-    const script = buildContainerScript([]);
-    expect(script).toContain('npm install');
-    expect(script).toContain('npm run build');
-    expect(script).toContain('npm install -g .');
+    expect(script).toContain('mkdir -p /root/.poe-code/logs');
   });
 
   it('appends user commands at the end', () => {
     const script = buildContainerScript(['echo hello', 'echo world']);
     expect(script).toContain('echo hello');
     expect(script).toContain('echo world');
-    // User commands should come after cd "$workspace_dir"
-    const cdIndex = script.lastIndexOf('cd "$workspace_dir"');
+    // User commands should come after PATH setup
+    const pathIndex = script.indexOf('export PATH=');
     const echoIndex = script.indexOf('echo hello');
-    expect(echoIndex).toBeGreaterThan(cdIndex);
+    expect(echoIndex).toBeGreaterThan(pathIndex);
   });
 
   it('joins commands with semicolons', () => {
@@ -129,6 +122,7 @@ describe('buildContainerScript', () => {
 });
 
 describe('buildDockerArgs', () => {
+  const testImage = `${IMAGE_NAME}:test123`;
   const baseConfig = {
     engine: 'docker' as const,
     context: '',
@@ -140,6 +134,7 @@ describe('buildDockerArgs', () => {
     },
     apiKey: null,
     containerScript: 'echo test',
+    image: testImage,
   };
 
   it('includes run --rm', () => {
@@ -170,7 +165,7 @@ describe('buildDockerArgs', () => {
 
   it('includes image and shell command', () => {
     const args = buildDockerArgs(baseConfig);
-    expect(args).toContain(DEFAULT_IMAGE);
+    expect(args).toContain(testImage);
     expect(args).toContain('sh');
     expect(args).toContain('-lc');
     expect(args).toContain('echo test');
