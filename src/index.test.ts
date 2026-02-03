@@ -23,4 +23,10 @@ describe("entrypoint module", () => {
       value === "/usr/bin/poe-code" ? "/app/dist/index.js" : value;
     expect(isCliInvocation(argv, moduleUrl, resolver)).toBe(true);
   });
+
+  it("returns false when invoked via CJS wrapper (bin.cjs)", () => {
+    const moduleUrl = "file:///app/dist/index.js";
+    const argv = ["node", "/app/dist/bin.cjs"];
+    expect(isCliInvocation(argv, moduleUrl, (value) => value)).toBe(false);
+  });
 });

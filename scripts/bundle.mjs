@@ -77,7 +77,7 @@ const wrapperPath = path.join(rootDir, "dist/bin.cjs");
 const wrapper = [
   "#!/usr/bin/env node",
   versionGateSnippet("poe-code"),
-  'import("./index.js").catch(function (err) { console.error(err); process.exit(1); });',
+  'import("./index.js").then(function (m) { m.main(); }).catch(function (err) { console.error(err); process.exit(1); });',
   "",
 ].join("\n");
 await writeFile(wrapperPath, wrapper, { encoding: "utf8" });
