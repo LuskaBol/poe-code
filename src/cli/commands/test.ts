@@ -172,9 +172,12 @@ export async function executeTest(
                 await check.run({
                   isDryRun: providerContext.logger.context.dryRun,
                   runCommand: (command: string, args: string[]) =>
-                    resources.context.runCommandWithEnv(command, args, {
-                      env: isolatedDetails.env
-                    }),
+                    resources.context.runCommand("poe-code", [
+                      "wrap",
+                      canonicalService,
+                      "--",
+                      ...args
+                    ]),
                   logDryRun: (message: string) =>
                     providerContext.logger.dryRun(message)
                 });
