@@ -180,6 +180,37 @@ export function toOpenCodeMcpCommand(
   return [execCommand.command, ...execCommand.args, subcommand];
 }
 
+export function formatCliHelpCommand(
+  context: { mode: ExecutionMode; command: ExecutionCommand },
+  args: string[]
+): string {
+  const base = formatCliUsageCommand(context);
+  const trailing = args.join(" ");
+  if (trailing.length === 0) {
+    return base;
+  }
+  return `${base} ${trailing}`;
+}
+
+export function formatCliUsageCommand(context: {
+  mode: ExecutionMode;
+  command: ExecutionCommand;
+}): string {
+  switch (context.mode) {
+    case "development":
+      return "npm run dev --";
+    case "npx":
+      return "npx poe-code";
+    case "npx-latest":
+      return "npx poe-code@latest";
+    case "npx-beta":
+      return "npx poe-code@beta";
+    case "global":
+    default:
+      return "poe-code";
+  }
+}
+
 /**
  * Get the current execution context using process globals
  */

@@ -17,64 +17,107 @@ import { registerMcpCommand } from "./commands/mcp.js";
 import { registerSkillCommand } from "./commands/skill.js";
 import { registerVersionOption } from "./commands/version.js";
 import packageJson from "../../package.json" with { type: "json" };
+import { throwCommandNotFound } from "./command-not-found.js";
+import {
+  detectExecutionContext,
+  formatCliHelpCommand,
+  formatCliUsageCommand
+} from "../utils/execution-context.js";
 
-function formatHelpText(): string {
-  const commandWidth = 11;
-  const cmd = (name: string, args: string) => {
-    const padded = name.padEnd(commandWidth);
-    const argument = args ? ` ${text.argument(args)}` : "";
-    return `  ${text.command(padded)}${argument}`;
+function formatCommandHeader(cmd: Command): string {
+  const parts: string[] = [];
+  let current: Command | null = cmd;
+  while (current) {
+    const name = current.name();
+    if (name === "poe-code") {
+      break;
+    }
+    if (name.length > 0) {
+      parts.push(name);
+    }
+    current = current.parent ?? null;
+  }
+  return `Poe - ${parts.reverse().join(" ")}`;
+}
+
+function formatHelpText(input: {
+  usageCommand: string;
+  helpCommand: string;
+}): string {
+  const commandRows: Array<{ name: string; args: string; description: string }> =
+    [
+      {
+        name: "configure",
+        args: "[agent]",
+        description: "Configure a coding agent (claude-code, codex, opencode)"
+      },
+      {
+        name: "unconfigure",
+        args: "<agent>",
+        description: "Remove a previously applied configuration"
+      },
+      {
+        name: "spawn",
+        args: "<agent> [prompt]",
+        description: "Launch a coding agent"
+      },
+      {
+        name: "generate",
+        args: "[type]",
+        description: "Call Poe models via CLI (text/image/video/audio)"
+      },
+      {
+        name: "mcp configure",
+        args: "[agent]",
+        description: "Configure Poe MCP for your coding agent"
+      },
+      {
+        name: "mcp unconfigure",
+        args: "<agent>",
+        description: "Remove Poe MCP configuration from your agent"
+      },
+      {
+        name: "mcp serve",
+        args: "",
+        description: "Run the Poe MCP server on stdin/stdout"
+      },
+      {
+        name: "skill configure",
+        args: "[agent]",
+        description: "Configure agent skills to call Poe models"
+      },
+      {
+        name: "skill unconfigure",
+        args: "[agent]",
+        description: "Remove agent skills configuration"
+      }
+    ];
+  const nameWidth = Math.max(0, ...commandRows.map((row) => row.name.length));
+  const argsWidth = Math.max(
+    0,
+    ...commandRows.map((row) => row.args.length)
+  );
+  const cmd = (row: (typeof commandRows)[number]) => {
+    const name = text.command(row.name.padEnd(nameWidth));
+    const args = row.args.length > 0
+      ? text.argument(row.args.padEnd(argsWidth))
+      : " ".repeat(argsWidth);
+    return `  ${name} ${args}  ${row.description}`;
   };
-  const example = (value: string) =>
-    `                                 ${text.example(value)}`;
-  const opt = (flag: string, desc: string) =>
-    `  ${text.option(flag.padEnd(27))}${desc}`;
 
   return [
-    text.heading("Configure coding agents to use the Poe API."),
+    text.heading("Poe - poe-code"),
     "",
-    `${text.section("Usage:")} ${text.usageCommand("poe-code")} ${text.argument("<command> [...options]")}`,
+    "Configure coding agents to use the Poe API.",
+    "",
+    `${text.section("Usage:")} ${text.usageCommand(input.usageCommand)} ${text.argument("<command> [...args]")}`,
     "",
     text.section("Commands:"),
-    cmd("configure", "[agent]") + "            Configure developer tooling for Poe API",
-    example("poe-code configure claude-code"),
+    ...commandRows.map(cmd),
     "",
-    cmd("unconfigure", "<agent>") + "       Remove existing Poe API tooling configuration",
-    example("poe-code unconfigure codex"),
+    `${text.muted("Run")} ${text.usageCommand(input.helpCommand)} ${text.muted("for command options.")}`,
     "",
-    cmd("install", "[agent]") + "            Install tooling for a configured agent",
-    example("poe-code install opencode"),
-    "",
-    cmd("spawn", "<agent> [prompt]") + "   Run a single prompt through a configured agent CLI",
-    example("poe-code spawn codex \"Say hello\""),
-    "",
-    cmd("wrap", "<agent>") + "            Run an agent CLI with Poe isolated configuration",
-    example("poe-code wrap claude-code --help"),
-    "",
-    cmd("test", "[agent]") + "            Run agent health checks",
-    example("poe-code test codex"),
-    "",
-    cmd("generate", "[type]") + "         Generate text or media via Poe API",
-    example("poe-code generate \"What is 2+2?\""),
-    "",
-    cmd("login", "") + "                          Store a Poe API key for reuse across commands",
-    "",
-    cmd("mcp", "[subcommand]") + "        MCP server commands",
-    example("poe-code mcp configure claude-code"),
-    "",
-    cmd("skill", "[subcommand]") + "      Skill directory commands",
-    example("poe-code skill configure claude-code"),
-    "",
-    text.section("Options:"),
-    opt("-y, --yes", "Accept defaults without prompting"),
-    opt("--dry-run", "Simulate commands without writing changes"),
-    opt("--verbose", "Show verbose logs"),
-    opt("-V, --version", "Output the version number"),
-    opt("-h, --help", "Display help for command"),
-    "",
-    opt("<command> --help", "Print help text for command"),
-    "",
-    `${text.muted("Learn more about Poe:")}            ${text.link("https://poe.com")}`,
+    `${text.muted("Learn more about Poe:")}            ${text.link("https://poe.com/api")}`,
     `${text.muted("GitHub:")}                          ${text.link("https://github.com/poe-platform/poe-code")}`
   ].join("\n");
 }
@@ -112,7 +155,7 @@ function formatSubcommandHelp(
     items.map(indentBlock).join("\n");
 
   const output: string[] = [];
-  output.push(text.heading(`Poe - ${cmd.name()}`), "");
+  output.push(text.heading(formatCommandHeader(cmd)), "");
   output.push(
     `${text.section("Usage:")} ${text.usageCommand(helper.commandUsage(cmd))}`,
     ""
@@ -193,6 +236,17 @@ export function createProgram(dependencies: CliDependencies): Command {
 
 function bootstrapProgram(container: CliContainer): Command {
   const program = new Command();
+  const executionContext = detectExecutionContext({
+    argv: process.argv,
+    env: container.env.variables,
+    moduleUrl: import.meta.url
+  });
+  const usageCommand = formatCliUsageCommand(executionContext);
+  const helpCommand = formatCliHelpCommand(executionContext, [
+    "<command>",
+    "--help"
+  ]);
+
   program
     .name("poe-code")
     .description("Configure Poe API integrations for local developer tooling.")
@@ -200,10 +254,12 @@ function bootstrapProgram(container: CliContainer): Command {
     .option("--dry-run", "Simulate commands without writing changes.")
     .option("--verbose", "Show verbose logs.")
     .helpOption("-h, --help", "Display help for command")
+    .showHelpAfterError(false)
+    .showSuggestionAfterError(true)
     .configureHelp({
       formatHelp: (cmd, helper) => {
         if (cmd.name() === "poe-code") {
-          return formatHelpText();
+          return formatHelpText({ usageCommand, helpCommand });
         }
         return formatSubcommandHelp(cmd, helper);
       }
@@ -221,8 +277,18 @@ function bootstrapProgram(container: CliContainer): Command {
   registerMcpCommand(program, container);
   registerSkillCommand(program, container);
 
-  program.action(() => {
-    program.outputHelp();
+  program.action(function (this: Command) {
+    const args = this.args;
+    if (args.length > 0) {
+      throwCommandNotFound({
+        container,
+        scope: "cli",
+        unknownCommand: args.at(0) ?? "",
+        helpArgs: ["--help"],
+        moduleUrl: import.meta.url
+      });
+    }
+    this.outputHelp();
   });
 
   return program;

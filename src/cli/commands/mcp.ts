@@ -6,6 +6,7 @@ import { initializeClient } from "../../services/client-instance.js";
 import { runMcpServerWithTransport, formatMcpToolsDocs } from "../mcp-server.js";
 import { createExecutionResources, resolveCommandFlags } from "./shared.js";
 import { parseMcpOutputFormatPreferences } from "../mcp-output-format.js";
+import { throwCommandNotFound } from "../command-not-found.js";
 import {
   supportedAgents,
   configure,
@@ -53,7 +54,16 @@ export function registerMcpCommand(
     .command("mcp")
     .description("MCP server commands")
     .addHelpText("after", buildHelpText())
-    .action(async function (this: Command) {
+    .action(function (this: Command) {
+      if (this.args.length > 0) {
+        throwCommandNotFound({
+          container,
+          scope: "mcp",
+          unknownCommand: this.args.at(0) ?? "",
+          helpArgs: ["mcp", "--help"],
+          moduleUrl: import.meta.url
+        });
+      }
       this.help();
     });
 

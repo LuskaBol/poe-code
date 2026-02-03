@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   detectExecutionContext,
+  formatCliHelpCommand,
+  formatCliUsageCommand,
   toMcpServerCommand,
   toOpenCodeMcpCommand
 } from "./execution-context.js";
@@ -148,5 +150,54 @@ describe("toOpenCodeMcpCommand", () => {
     );
 
     expect(result).toEqual(["npm", "--silent", "--prefix", "/workspace/poe-code", "run", "dev", "--", "mcp"]);
+  });
+});
+
+describe("formatCliHelpCommand", () => {
+  it("formats global help command as poe-code invocation", () => {
+    const help = formatCliHelpCommand(
+      { mode: "global", command: { command: "poe-code", args: [] } },
+      ["--help"]
+    );
+    expect(help).toBe("poe-code --help");
+  });
+
+  it("formats npx help command with package spec", () => {
+    const help = formatCliHelpCommand(
+      { mode: "npx-beta", command: { command: "npx", args: ["--yes", "poe-code@beta"] } },
+      ["mcp", "--help"]
+    );
+    expect(help).toBe("npx poe-code@beta mcp --help");
+  });
+
+  it("formats development help command as npm run dev", () => {
+    const help = formatCliHelpCommand(
+      { mode: "development", command: { command: "npm", args: [] } },
+      ["--help"]
+    );
+    expect(help).toBe("npm run dev -- --help");
+  });
+});
+
+describe("formatCliUsageCommand", () => {
+  it("formats global usage as poe-code", () => {
+    expect(
+      formatCliUsageCommand({ mode: "global", command: { command: "poe-code", args: [] } })
+    ).toBe("poe-code");
+  });
+
+  it("formats development usage as npm run dev", () => {
+    expect(
+      formatCliUsageCommand({ mode: "development", command: { command: "npm", args: [] } })
+    ).toBe("npm run dev --");
+  });
+
+  it("formats npx-beta usage with channel", () => {
+    expect(
+      formatCliUsageCommand({
+        mode: "npx-beta",
+        command: { command: "npx", args: ["--yes", "poe-code@beta"] }
+      })
+    ).toBe("npx poe-code@beta");
   });
 });
