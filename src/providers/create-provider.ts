@@ -14,24 +14,22 @@ import {
   runServiceInstall,
   type ServiceInstallDefinition
 } from "../services/service-install.js";
-import pythonEnvTemplate from "../templates/python/env.hbs";
-import pythonMainTemplate from "../templates/python/main.py.hbs";
-import pythonRequirementsTemplate from "../templates/python/requirements.txt.hbs";
-import codexConfigTemplate from "../templates/codex/config.toml.hbs";
-
-const providerTemplates: Record<string, string> = {
-  "python/env.hbs": pythonEnvTemplate,
-  "python/main.py.hbs": pythonMainTemplate,
-  "python/requirements.txt.hbs": pythonRequirementsTemplate,
-  "codex/config.toml.hbs": codexConfigTemplate,
+// Template imports are lazy to avoid breaking tsc output when imported
+// by generate-bin-wrappers.mjs (Node.js can't resolve .hbs as ESM modules)
+const templateImports: Record<string, () => Promise<{ default: string }>> = {
+  "python/env.hbs": () => import("../templates/python/env.hbs"),
+  "python/main.py.hbs": () => import("../templates/python/main.py.hbs"),
+  "python/requirements.txt.hbs": () => import("../templates/python/requirements.txt.hbs"),
+  "codex/config.toml.hbs": () => import("../templates/codex/config.toml.hbs"),
 };
 
 async function loadTemplate(templateId: string): Promise<string> {
-  const template = providerTemplates[templateId];
-  if (!template) {
+  const loader = templateImports[templateId];
+  if (!loader) {
     throw new Error(`Template not found: ${templateId}`);
   }
-  return template;
+  const module = await loader();
+  return module.default;
 }
 
 interface ManifestVersionDefinition {
