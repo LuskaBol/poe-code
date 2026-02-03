@@ -6,7 +6,7 @@ async function getTemplates(): Promise<Record<string, string>> {
   if (templatesCache) {
     return templatesCache;
   }
-  // Lazy import templates as text (bundled by esbuild)
+  // Lazy import template as text (bundled by esbuild text loader)
   const poeGenerateTemplate = await import("./templates/poe-generate.md").then(
     (m) => m.default
   );

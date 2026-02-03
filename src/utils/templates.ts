@@ -9,7 +9,7 @@ async function getTemplates(): Promise<Record<string, string>> {
   if (templatesCache) {
     return templatesCache;
   }
-  // Lazy import templates as text (bundled by esbuild)
+  // Lazy import templates as text (bundled by esbuild text loader)
   const [pythonEnvTemplate, pythonMainTemplate, pythonRequirementsTemplate, codexConfigTemplate] =
     await Promise.all([
       import("../templates/python/env.hbs").then((m) => m.default),
