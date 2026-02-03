@@ -1,6 +1,7 @@
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { versionGateSnippet } from "./node-version-gate.mjs";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(currentDir, "..");
@@ -23,6 +24,7 @@ for (const alias of aliases) {
   const filePath = path.join(binDir, `${alias.binName}.js`);
   const content = [
     "#!/usr/bin/env node",
+    versionGateSnippet(alias.binName),
     'import { spawn } from "node:child_process";',
     'import path from "node:path";',
     'import { fileURLToPath } from "node:url";',

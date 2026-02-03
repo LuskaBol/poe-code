@@ -1,7 +1,8 @@
 import * as esbuild from "esbuild";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
+import { versionGateSnippet } from "./node-version-gate.mjs";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(currentDir, "..");
@@ -12,12 +13,18 @@ const workspaceDirs = await readdir(packagesDir, { withFileTypes: true });
 const workspaceAliases = {};
 const workspacePackageNames = new Set();
 
+const workspaceDeps = new Set();
+
 for (const dir of workspaceDirs.filter((d) => d.isDirectory())) {
   const pkgPath = path.join(packagesDir, dir.name, "package.json");
   const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
   workspacePackageNames.add(pkg.name);
   // Resolve workspace packages to source (Just-in-Time compilation)
   workspaceAliases[pkg.name] = path.join(packagesDir, dir.name, "src/index.ts");
+  // Collect workspace package dependencies for externalization
+  for (const dep of Object.keys(pkg.dependencies || {})) {
+    workspaceDeps.add(dep);
+  }
 }
 
 // External deps = root package.json dependencies (what users install via npm)
@@ -27,7 +34,12 @@ const packageJson = JSON.parse(
 const runtimeDeps = Object.keys(packageJson.dependencies || {}).filter(
   (dep) => !workspacePackageNames.has(dep)
 );
-const externalDeps = [...runtimeDeps, "node:*"];
+// Externalize root deps + workspace package deps (excluding workspace packages themselves)
+const allExternalDeps = new Set([...runtimeDeps, ...workspaceDeps]);
+for (const pkg of workspacePackageNames) {
+  allExternalDeps.delete(pkg);
+}
+const externalDeps = [...allExternalDeps, "node:*"];
 
 // Plugin to strip shebangs from source files
 const stripShebangPlugin = {
@@ -52,12 +64,22 @@ await esbuild.build({
   outfile: path.join(rootDir, "dist/index.js"),
   external: externalDeps,
   alias: workspaceAliases,
-  banner: {
-    js: "#!/usr/bin/env node",
-  },
+  banner: undefined,
   sourcemap: true,
   plugins: [stripShebangPlugin],
   loader: { ".md": "text", ".hbs": "text" },
 });
 
-console.log("Bundle complete: dist/index.js");
+// Generate a CJS entry point with a Node.js version gate.
+// Written in ES5 syntax so even ancient Node versions parse it and
+// print a friendly error instead of crashing on modern syntax.
+const wrapperPath = path.join(rootDir, "dist/bin.cjs");
+const wrapper = [
+  "#!/usr/bin/env node",
+  versionGateSnippet("poe-code"),
+  'import("./index.js").catch(function (err) { console.error(err); process.exit(1); });',
+  "",
+].join("\n");
+await writeFile(wrapperPath, wrapper, { encoding: "utf8" });
+
+console.log("Bundle complete: dist/index.js + dist/bin.cjs");
