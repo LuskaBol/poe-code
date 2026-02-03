@@ -85,6 +85,17 @@ export interface ProviderIsolatedEnv {
   env: Record<string, IsolatedEnvValue>;
   repairs?: IsolatedEnvRepair[];
   requiresConfig?: boolean;
+  /** CLI settings to inject via --settings flag (for agents that support it) */
+  cliSettings?: IsolatedCliSettings;
+}
+
+export interface IsolatedCliSettings {
+  /** Static settings values */
+  values: Record<string, unknown>;
+  /** Top-level settings that need runtime resolution */
+  resolved?: Record<string, IsolatedEnvPoeApiKey | IsolatedEnvPoeBaseUrl>;
+  /** Environment variables to inject into settings.env (resolved at runtime) */
+  env?: Record<string, string | IsolatedEnvPoeApiKey | IsolatedEnvPoeBaseUrl>;
 }
 
 export type IsolatedEnvRepair =

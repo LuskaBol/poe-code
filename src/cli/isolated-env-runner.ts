@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
 import type { ProviderIsolatedEnv } from "./service-registry.js";
 import type { CliEnvironment } from "./environment.js";
-import { resolveIsolatedEnvDetails } from "./isolated-env.js";
+import { resolveCliSettings, resolveIsolatedEnvDetails } from "./isolated-env.js";
 import type { FileSystem } from "../utils/file-system.js";
+import { buildArgsWithMergedSettings } from "../utils/cli-settings-merge.js";
 
 export async function isolatedEnvRunner(input: {
   env: CliEnvironment;
@@ -17,7 +18,7 @@ export async function isolatedEnvRunner(input: {
     input.providerName,
     input.fs
   );
-  const [, , ...args] = input.argv;
+  let args = input.argv.slice(2);
 
   if (input.isolated.requiresConfig !== false) {
     const hasConfig = await configExists(input.fs, details.configProbePath!);
@@ -26,6 +27,16 @@ export async function isolatedEnvRunner(input: {
         `${input.providerName} is not configured. Run 'poe-code login' or 'poe-code configure ${input.providerName}'.`
       );
     }
+  }
+
+  // Merge CLI settings if provider defines them
+  if (input.isolated.cliSettings) {
+    const resolvedSettings = await resolveCliSettings(
+      input.isolated.cliSettings,
+      input.env,
+      input.fs
+    );
+    args = buildArgsWithMergedSettings(args, resolvedSettings);
   }
 
   const child = spawn(details.agentBinary, args, {

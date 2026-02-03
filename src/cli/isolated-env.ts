@@ -2,6 +2,7 @@ import path from "node:path";
 import type { CliEnvironment } from "./environment.js";
 import type { FileSystem } from "../utils/file-system.js";
 import type {
+  IsolatedCliSettings,
   IsolatedEnvPath,
   IsolatedEnvPoeApiKey,
   IsolatedEnvPoeBaseUrl,
@@ -9,6 +10,7 @@ import type {
   IsolatedEnvValue,
   ProviderIsolatedEnv
 } from "./service-registry.js";
+import type { CliSettings } from "../utils/cli-settings-merge.js";
 import { loadCredentials } from "../services/credentials.js";
 
 export interface IsolatedEnvDetails {
@@ -218,6 +220,59 @@ export async function applyIsolatedEnvRepairs(input: {
       throw error;
     }
   }
+}
+
+export async function resolveCliSettings(
+  cliSettings: IsolatedCliSettings,
+  env: CliEnvironment,
+  fs?: FileSystem
+): Promise<CliSettings> {
+  const result: CliSettings = { ...cliSettings.values };
+
+  // Resolve top-level settings
+  if (cliSettings.resolved) {
+    for (const [key, value] of Object.entries(cliSettings.resolved)) {
+      result[key] = await resolveCliSettingValue(value, env, fs);
+    }
+  }
+
+  // Resolve env settings (nested under settings.env)
+  if (cliSettings.env) {
+    const resolvedEnv: Record<string, string | number> = {};
+    for (const [key, value] of Object.entries(cliSettings.env)) {
+      if (typeof value === "string") {
+        resolvedEnv[key] = value;
+      } else {
+        resolvedEnv[key] = await resolveCliSettingValue(value, env, fs);
+      }
+    }
+    result.env = resolvedEnv;
+  }
+
+  return result;
+}
+
+async function resolveCliSettingValue(
+  value: IsolatedEnvPoeApiKey | IsolatedEnvPoeBaseUrl,
+  env: CliEnvironment,
+  fs?: FileSystem
+): Promise<string> {
+  if (isPoeApiKeyReference(value)) {
+    const resolved = env.getVariable("POE_API_KEY");
+    if (typeof resolved === "string" && resolved.trim().length > 0) {
+      return resolved;
+    }
+    if (fs) {
+      return await resolvePoeApiKeyFromCredentials({ fs, env });
+    }
+    throw new Error(
+      'Missing Poe API key for CLI settings. Set "POE_API_KEY" or run "poe-code login".'
+    );
+  }
+  if (isPoeBaseUrlReference(value)) {
+    return env.poeBaseUrl;
+  }
+  throw new Error("Unsupported CLI setting value type.");
 }
 
 function stripAgentHome(
