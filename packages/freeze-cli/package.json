@@ -17,7 +17,7 @@
     "version": "0.2.2",
     "url": "https://github.com/charmbracelet/freeze/releases/download/v{{version}}/freeze_{{version}}_{{platform}}_{{arch}}.tar.gz"
   },
-  "dependencies": {
+  "devDependencies": {
     "tar": "^7.4.0"
   }
 }

@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Stats } from "node:fs";
 import * as fsPromises from "node:fs/promises";
-import { isCancel, select } from "@clack/prompts";
+import { isCancel, select } from "@poe-code/design-system";
 import { isNotFound } from "@poe-code/config-mutations";
 
 export type PlanResolverFileSystem = {

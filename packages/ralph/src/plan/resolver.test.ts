@@ -6,7 +6,7 @@ import type { FileSystem } from "../../../../src/utils/file-system.js";
 const clackSelect = vi.hoisted(() => vi.fn());
 const clackIsCancel = vi.hoisted(() => vi.fn());
 
-vi.mock("@clack/prompts", () => ({
+vi.mock("@poe-code/design-system", () => ({
   select: clackSelect,
   isCancel: clackIsCancel
 }));

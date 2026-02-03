@@ -23,13 +23,9 @@
     "templates"
   ],
   "dependencies": {
-    "@clack/prompts": "^0.11.0",
     "@poe-code/agent-spawn": "*",
     "@poe-code/config-mutations": "*",
-    "proper-lockfile": "^4.1.2",
+    "@poe-code/design-system": "*",
     "yaml": "^2.8.2"
-  },
-  "devDependencies": {
-    "@types/proper-lockfile": "^4.1.4"
   }
 }

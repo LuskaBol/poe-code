@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
 import * as fsPromises from "node:fs/promises";
-import lockfile from "proper-lockfile";
+import { lockFile } from "../lock/lock.js";
 import { stringify } from "yaml";
 import type { Plan, Story } from "./types.js";
 
@@ -69,17 +69,8 @@ function serializePlan(prd: Plan): string {
   return yaml.endsWith("\n") ? yaml : `${yaml}\n`;
 }
 
-async function lockPlanFile(path: string): Promise<LockRelease> {
-  const release = await lockfile.lock(path, {
-    retries: {
-      retries: 20,
-      minTimeout: 25,
-      maxTimeout: 250
-    }
-  });
-  return async () => {
-    await release();
-  };
+function lockPlanFile(path: string): Promise<LockRelease> {
+  return lockFile(path, { retries: 20, minTimeout: 25, maxTimeout: 250 });
 }
 
 export async function writePlan(

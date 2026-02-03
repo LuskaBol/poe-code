@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
 import * as fsPromises from "node:fs/promises";
-import lockfile from "proper-lockfile";
+import { lockFile } from "../lock/lock.js";
 import { parsePlan } from "../plan/parser.js";
 import { writePlan } from "../plan/writer.js";
 import type { Plan, Story, StoryStatus } from "../plan/types.js";
@@ -25,17 +25,7 @@ export type UpdateStoryStatusOptions = {
 };
 
 function lockPlanFile(path: string): Promise<LockRelease> {
-  return lockfile
-    .lock(path, {
-      retries: {
-        retries: 20,
-        minTimeout: 25,
-        maxTimeout: 250
-      }
-    })
-    .then((release) => async () => {
-      await release();
-    });
+  return lockFile(path, { retries: 20, minTimeout: 25, maxTimeout: 250 });
 }
 
 function assertStoryStatus(value: unknown): asserts value is StoryStatus {

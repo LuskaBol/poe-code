@@ -1,8 +1,8 @@
 import { dirname, resolve as resolvePath } from "node:path";
 import * as fsPromises from "node:fs/promises";
-import lockfile from "proper-lockfile";
+import { lockFile } from "../lock/lock.js";
 import { spawn as defaultSpawn } from "@poe-code/agent-spawn";
-import { isCancel, select as clackSelect } from "@clack/prompts";
+import { isCancel, select as clackSelect } from "@poe-code/design-system";
 import { isNotFound } from "@poe-code/config-mutations";
 import { detectCompletion } from "../completion/detector.js";
 import { getChangedFiles, getCommitList, getDirtyFiles, getHead } from "../git/utils.js";
@@ -158,17 +158,8 @@ async function appendToErrorsLog(
   await fs.writeFile(errorsLogPath, `${previous}${next}`, { encoding: "utf8" });
 }
 
-async function lockPlanFile(path: string): Promise<LockRelease> {
-  const release = await lockfile.lock(path, {
-    retries: {
-      retries: 20,
-      minTimeout: 25,
-      maxTimeout: 250
-    }
-  });
-  return async () => {
-    await release();
-  };
+function lockPlanFile(path: string): Promise<LockRelease> {
+  return lockFile(path, { retries: 20, minTimeout: 25, maxTimeout: 250 });
 }
 
 function formatQualityGates(gates: readonly string[]): string {

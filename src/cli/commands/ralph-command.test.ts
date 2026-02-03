@@ -276,8 +276,8 @@ describe("ralph build command", () => {
       "/repo/.agents/tasks/plan-one.yaml": "version: 1\nproject: One\nstories: []\n",
       "/repo/.agents/tasks/plan-two.yaml": "version: 1\nproject: Two\nstories: []\n"
     });
-    clackSelect.mockResolvedValueOnce(".agents/tasks/plan-two.yaml");
-    clackIsCancel.mockReturnValue(false);
+    designSelect.mockResolvedValueOnce(".agents/tasks/plan-two.yaml");
+    designIsCancel.mockReturnValue(false);
     const container = createCliContainer({
       fs,
       prompts: vi.fn().mockResolvedValue({}),
@@ -289,7 +289,7 @@ describe("ralph build command", () => {
 
     await program.parseAsync(["node", "cli", "ralph", "build"]);
 
-    expect(clackSelect).toHaveBeenCalled();
+    expect(designSelect).toHaveBeenCalled();
 
     const build = vi.mocked(ralphBuild);
     expect(build).toHaveBeenCalledWith(
