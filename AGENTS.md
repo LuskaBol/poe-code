@@ -44,9 +44,6 @@ Use docs/SNAPSHOT_TESTING.md
 
 - Beta release: Push to `beta` branch → publishes `poe-code@beta`
 - Stable release: Push to `main` branch → publishes `poe-code@latest`
-- Promote beta to stable: Run "Promote Beta to Stable" workflow from GitHub Actions UI
-
-After a stable release, the `beta` branch is automatically rebased onto `main`.
 
 ## Configure commands / Providers
 
