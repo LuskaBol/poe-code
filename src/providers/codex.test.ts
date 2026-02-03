@@ -312,7 +312,7 @@ describe("codex service", () => {
     expect(poe).toMatchObject({
       name: "poe",
       base_url: "https://api.poe.com/v1",
-      wire_api: "chat",
+      wire_api: "responses",
       experimental_bearer_token: "sk-test"
     });
 

@@ -1,7 +1,5 @@
 import * as fsPromises from "node:fs/promises";
 import { afterAll, beforeAll, beforeEach, vi } from "vitest";
-import { setTemplateLoader } from "../src/utils/templates.js";
-import { templateFixtures } from "./template-fixtures.js";
 import { setGlobalClient } from "../src/services/client-instance.js";
 import type { LlmClient } from "../src/services/llm-client.js";
 import type { FileSystem } from "../src/utils/file-system.js";
@@ -12,18 +10,6 @@ import { createPoeClient } from "../src/services/llm-client.js";
 import { getPoeApiKey } from "../src/sdk/credentials.js";
 
 process.env.FORCE_COLOR = process.env.FORCE_COLOR ?? "1";
-
-beforeAll(() => {
-  setTemplateLoader(async (relativePath) => {
-    const template = templateFixtures.get(relativePath);
-    if (!template) {
-      throw new Error(`Missing template fixture for ${relativePath}`);
-    }
-    return template;
-  });
-});
-
-afterAll(setTemplateLoader.bind(null, null));
 
 const fetchMock = vi.fn(async () => {
   throw new Error("Unexpected fetch invocation. Provide a mock implementation.");

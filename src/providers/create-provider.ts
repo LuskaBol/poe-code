@@ -14,7 +14,25 @@ import {
   runServiceInstall,
   type ServiceInstallDefinition
 } from "../services/service-install.js";
-import { loadTemplate } from "../utils/templates.js";
+import pythonEnvTemplate from "../templates/python/env.hbs";
+import pythonMainTemplate from "../templates/python/main.py.hbs";
+import pythonRequirementsTemplate from "../templates/python/requirements.txt.hbs";
+import codexConfigTemplate from "../templates/codex/config.toml.hbs";
+
+const providerTemplates: Record<string, string> = {
+  "python/env.hbs": pythonEnvTemplate,
+  "python/main.py.hbs": pythonMainTemplate,
+  "python/requirements.txt.hbs": pythonRequirementsTemplate,
+  "codex/config.toml.hbs": codexConfigTemplate,
+};
+
+async function loadTemplate(templateId: string): Promise<string> {
+  const template = providerTemplates[templateId];
+  if (!template) {
+    throw new Error(`Template not found: ${templateId}`);
+  }
+  return template;
+}
 
 interface ManifestVersionDefinition {
   configure: Mutation[];

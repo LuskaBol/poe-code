@@ -3,6 +3,10 @@ import { Volume, createFsFromVolume } from "memfs";
 import { Command } from "commander";
 import { createCliContainer } from "../container.js";
 import type { FileSystem } from "../../utils/file-system.js";
+import { renderTemplate } from "@poe-code/config-mutations";
+import ralphPromptPartialPlan from "../../templates/ralph/PROMPT_PARTIAL_plan.md";
+import ralphSkillPlan from "../../templates/ralph/SKILL_plan.md";
+import ralphPromptBuild from "../../templates/ralph/PROMPT_build.md";
 
 const clackSelect = vi.hoisted(() => vi.fn());
 const clackIsCancel = vi.hoisted(() => vi.fn());
@@ -45,7 +49,6 @@ vi.mock("@poe-code/ralph", async () => {
 
 import { ralphBuild, ralphPlan, logActivity } from "@poe-code/ralph";
 import { registerRalphCommand } from "./ralph.js";
-import { setTemplateLoader } from "../../utils/templates.js";
 
 const cwd = "/repo";
 const homeDir = "/home/test";
@@ -72,7 +75,6 @@ function createBaseProgram(): Command {
 describe("ralph build command", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    setTemplateLoader(null);
     clackSelect.mockReset();
     clackIsCancel.mockReset();
     vi.mocked(ralphBuild).mockClear();
@@ -322,7 +324,6 @@ describe("ralph build command", () => {
 describe("ralph plan command", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    setTemplateLoader(null);
     clackSelect.mockReset();
     clackIsCancel.mockReset();
     vi.mocked(ralphBuild).mockClear();
@@ -352,7 +353,6 @@ describe("ralph plan command", () => {
 describe("ralph install command", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    setTemplateLoader(null);
     designSelect.mockReset();
     designIsCancel.mockReset();
   });
@@ -360,18 +360,6 @@ describe("ralph install command", () => {
   it("creates Ralph template files and .poe-code-ralph directory structure", async () => {
     const fs = createMemFs();
     const logs: string[] = [];
-
-    setTemplateLoader(async (relativePath) => {
-      if (relativePath === "ralph/SKILL_plan.md") return "---\nname: test\n---\n{{{PROMPT_PARTIAL_PLAN}}}";
-      if (relativePath === "ralph/PROMPT_PARTIAL_plan.md") return "PROMPT_PARTIAL_PLAN_CONTENT";
-      if (relativePath === "ralph/PROMPT_plan.md") return "{{{PROMPT_PARTIAL_PLAN}}}\n\n## Variables";
-      if (relativePath === "ralph/PROMPT_build.md") return "PROMPT_BUILD";
-      if (relativePath === "ralph/state/progress.md") return "PROGRESS";
-      if (relativePath === "ralph/state/guardrails.md") return "GUARDRAILS";
-      if (relativePath === "ralph/state/errors.log") return "ERRORS";
-      if (relativePath === "ralph/state/activity.log") return "";
-      throw new Error(`Unexpected template read: ${relativePath}`);
-    });
 
     const container = createCliContainer({
       fs,
@@ -384,12 +372,13 @@ describe("ralph install command", () => {
 
     await program.parseAsync(["node", "cli", "ralph", "install", "--agent", "claude-code", "--local"]);
 
+    const expectedSkill = renderTemplate(ralphSkillPlan, { PROMPT_PARTIAL_PLAN: ralphPromptPartialPlan });
     expect(
       await fs.readFile("/repo/.claude/skills/poe-code-ralph-plan/SKILL.md", "utf8")
-    ).toBe("---\nname: test\n---\nPROMPT_PARTIAL_PLAN_CONTENT");
+    ).toBe(expectedSkill);
     expect(
       await fs.readFile("/repo/.agents/poe-code-ralph/PROMPT_build.md", "utf8")
-    ).toBe("PROMPT_BUILD");
+    ).toBe(ralphPromptBuild);
 
     await expect(fs.stat("/repo/.poe-code-ralph/progress.md")).resolves.toBeDefined();
     await expect(fs.stat("/repo/.poe-code-ralph/guardrails.md")).resolves.toBeDefined();
@@ -404,18 +393,6 @@ describe("ralph install command", () => {
       "/repo/.agents/poe-code-ralph/PROMPT_build.md": "EXISTING_PROMPT"
     });
     const logs: string[] = [];
-
-    setTemplateLoader(async (relativePath) => {
-      if (relativePath === "ralph/SKILL_plan.md") return "---\nname: test\n---\n{{{PROMPT_PARTIAL_PLAN}}}";
-      if (relativePath === "ralph/PROMPT_PARTIAL_plan.md") return "PROMPT_PARTIAL_PLAN_CONTENT";
-      if (relativePath === "ralph/PROMPT_plan.md") return "{{{PROMPT_PARTIAL_PLAN}}}\n\n## Variables";
-      if (relativePath === "ralph/PROMPT_build.md") return "PROMPT_BUILD";
-      if (relativePath === "ralph/state/progress.md") return "PROGRESS";
-      if (relativePath === "ralph/state/guardrails.md") return "GUARDRAILS";
-      if (relativePath === "ralph/state/errors.log") return "ERRORS";
-      if (relativePath === "ralph/state/activity.log") return "";
-      throw new Error(`Unexpected template read: ${relativePath}`);
-    });
 
     const container = createCliContainer({
       fs,
@@ -439,18 +416,6 @@ describe("ralph install command", () => {
       "/repo/.agents/poe-code-ralph/PROMPT_build.md": "EXISTING_PROMPT"
     });
 
-    setTemplateLoader(async (relativePath) => {
-      if (relativePath === "ralph/SKILL_plan.md") return "---\nname: test\n---\n{{{PROMPT_PARTIAL_PLAN}}}";
-      if (relativePath === "ralph/PROMPT_PARTIAL_plan.md") return "PROMPT_PARTIAL_PLAN_CONTENT";
-      if (relativePath === "ralph/PROMPT_plan.md") return "{{{PROMPT_PARTIAL_PLAN}}}\n\n## Variables";
-      if (relativePath === "ralph/PROMPT_build.md") return "PROMPT_BUILD";
-      if (relativePath === "ralph/state/progress.md") return "PROGRESS";
-      if (relativePath === "ralph/state/guardrails.md") return "GUARDRAILS";
-      if (relativePath === "ralph/state/errors.log") return "ERRORS";
-      if (relativePath === "ralph/state/activity.log") return "";
-      throw new Error(`Unexpected template read: ${relativePath}`);
-    });
-
     const container = createCliContainer({
       fs,
       prompts: vi.fn().mockResolvedValue({}),
@@ -464,23 +429,11 @@ describe("ralph install command", () => {
 
     expect(
       await fs.readFile("/repo/.agents/poe-code-ralph/PROMPT_build.md", "utf8")
-    ).toBe("PROMPT_BUILD");
+    ).toBe(ralphPromptBuild);
   });
 
   it("prompts for agent and scope when not provided", async () => {
     const fs = createMemFs();
-
-    setTemplateLoader(async (relativePath) => {
-      if (relativePath === "ralph/SKILL_plan.md") return "---\nname: test\n---\n{{{PROMPT_PARTIAL_PLAN}}}";
-      if (relativePath === "ralph/PROMPT_PARTIAL_plan.md") return "PROMPT_PARTIAL_PLAN_CONTENT";
-      if (relativePath === "ralph/PROMPT_plan.md") return "{{{PROMPT_PARTIAL_PLAN}}}\n\n## Variables";
-      if (relativePath === "ralph/PROMPT_build.md") return "PROMPT_BUILD";
-      if (relativePath === "ralph/state/progress.md") return "PROGRESS";
-      if (relativePath === "ralph/state/guardrails.md") return "GUARDRAILS";
-      if (relativePath === "ralph/state/errors.log") return "ERRORS";
-      if (relativePath === "ralph/state/activity.log") return "";
-      throw new Error(`Unexpected template read: ${relativePath}`);
-    });
 
     designSelect.mockResolvedValueOnce("claude-code").mockResolvedValueOnce("local");
     designIsCancel.mockReturnValue(false);
@@ -497,16 +450,17 @@ describe("ralph install command", () => {
     await program.parseAsync(["node", "cli", "ralph", "install"]);
 
     expect(designSelect).toHaveBeenCalledTimes(2);
+
+    const expectedSkill = renderTemplate(ralphSkillPlan, { PROMPT_PARTIAL_PLAN: ralphPromptPartialPlan });
     expect(
       await fs.readFile("/repo/.claude/skills/poe-code-ralph-plan/SKILL.md", "utf8")
-    ).toBe("---\nname: test\n---\nPROMPT_PARTIAL_PLAN_CONTENT");
+    ).toBe(expectedSkill);
   });
 });
 
 describe("ralph agent log command", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    setTemplateLoader(null);
   });
 
   it("defaults to .ralph/activity.log", async () => {

@@ -67,7 +67,7 @@ await esbuild.build({
   banner: undefined,
   sourcemap: true,
   plugins: [stripShebangPlugin],
-  loader: { ".md": "text", ".hbs": "text" },
+  loader: { ".md": "text", ".hbs": "text", ".log": "text" },
 });
 
 // Generate a CJS entry point with a Node.js version gate.

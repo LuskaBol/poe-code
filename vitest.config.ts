@@ -10,7 +10,7 @@ function rawTextPlugin(): Plugin {
   return {
     name: "raw-text",
     transform(code, id) {
-      if (id.endsWith(".hbs") || id.endsWith(".md")) {
+      if (id.endsWith(".hbs") || id.endsWith(".md") || id.endsWith(".log")) {
         const content = fs.readFileSync(id, "utf8");
         return {
           code: `export default ${JSON.stringify(content)};`,

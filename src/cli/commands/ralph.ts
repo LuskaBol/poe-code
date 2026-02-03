@@ -16,7 +16,14 @@ import {
   resolveCommandFlags,
   type CommandFlags
 } from "./shared.js";
-import { loadTemplate } from "../../utils/templates.js";
+import ralphPromptPartialPlan from "../../templates/ralph/PROMPT_PARTIAL_plan.md";
+import ralphSkillPlan from "../../templates/ralph/SKILL_plan.md";
+import ralphPromptPlan from "../../templates/ralph/PROMPT_plan.md";
+import ralphPromptBuild from "../../templates/ralph/PROMPT_build.md";
+import ralphStateProgress from "../../templates/ralph/state/progress.md";
+import ralphStateGuardrails from "../../templates/ralph/state/guardrails.md";
+import ralphStateErrors from "../../templates/ralph/state/errors.log";
+import ralphStateActivity from "../../templates/ralph/state/activity.log";
 
 const DEFAULT_RALPH_AGENT = "claude-code";
 
@@ -135,9 +142,7 @@ async function installRalphTemplates(args: {
     }
 
     // Install /plan skill to agent's skill directory
-    const promptPartialPlan = await loadTemplate("ralph/PROMPT_PARTIAL_plan.md");
-    const skillTemplate = await loadTemplate("ralph/SKILL_plan.md");
-    const skillContents = renderTemplate(skillTemplate, { PROMPT_PARTIAL_PLAN: promptPartialPlan });
+    const skillContents = renderTemplate(ralphSkillPlan, { PROMPT_PARTIAL_PLAN: ralphPromptPartialPlan });
 
     const skillResult = await installSkill(
       args.agent,
@@ -154,8 +159,7 @@ async function installRalphTemplates(args: {
 
     // Install project templates to .agents/poe-code-ralph
     // PROMPT_plan.md: use string replace to preserve {{REQUEST}} and {{OUT_PATH}} as runtime variables
-    const promptPlanTemplate = await loadTemplate("ralph/PROMPT_plan.md");
-    const promptPlanContents = promptPlanTemplate.replace("{{{PROMPT_PARTIAL_PLAN}}}", promptPartialPlan);
+    const promptPlanContents = ralphPromptPlan.replace("{{{PROMPT_PARTIAL_PLAN}}}", ralphPromptPartialPlan);
 
     const templateWrites = [
       {
@@ -166,7 +170,7 @@ async function installRalphTemplates(args: {
       {
         targetPath: path.join(cwd, ".agents", "poe-code-ralph", "PROMPT_build.md"),
         displayPath: ".agents/poe-code-ralph/PROMPT_build.md",
-        contents: await loadTemplate("ralph/PROMPT_build.md")
+        contents: ralphPromptBuild
       }
     ];
 
@@ -184,33 +188,32 @@ async function installRalphTemplates(args: {
     // Install state files to .poe-code-ralph
     const stateFiles = [
       {
-        templatePath: "ralph/state/progress.md",
+        contents: ralphStateProgress,
         targetPath: path.join(cwd, ".poe-code-ralph", "progress.md"),
         displayPath: ".poe-code-ralph/progress.md"
       },
       {
-        templatePath: "ralph/state/guardrails.md",
+        contents: ralphStateGuardrails,
         targetPath: path.join(cwd, ".poe-code-ralph", "guardrails.md"),
         displayPath: ".poe-code-ralph/guardrails.md"
       },
       {
-        templatePath: "ralph/state/errors.log",
+        contents: ralphStateErrors,
         targetPath: path.join(cwd, ".poe-code-ralph", "errors.log"),
         displayPath: ".poe-code-ralph/errors.log"
       },
       {
-        templatePath: "ralph/state/activity.log",
+        contents: ralphStateActivity,
         targetPath: path.join(cwd, ".poe-code-ralph", "activity.log"),
         displayPath: ".poe-code-ralph/activity.log"
       }
     ];
 
     for (const entry of stateFiles) {
-      const contents = await loadTemplate(entry.templatePath);
       await writeFileOrSkip({
         fs: resources.context.fs,
         filePath: entry.targetPath,
-        contents,
+        contents: entry.contents,
         force,
         logger: resources.logger,
         displayPath: entry.displayPath
