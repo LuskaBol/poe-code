@@ -1,0 +1,33 @@
+import { typography } from "../tokens/typography.js";
+import { text } from "./text.js";
+
+export function formatCommandNotFound(input: {
+  unknownCommand: string;
+  helpCommand: string;
+}): { label: string; hint: string } {
+  const unknown = input.unknownCommand.length > 0
+    ? input.unknownCommand
+    : "<command>";
+
+  return {
+    label: `${typography.bold("Unknown command:")} ${text.command(unknown)}`,
+    hint: `${text.muted("Run")} ${text.usageCommand(input.helpCommand)} ${text.muted("for available commands.")}`
+  };
+}
+
+export function formatCommandNotFoundPanel(input: {
+  unknownCommand: string;
+  helpCommand: string;
+  title?: string;
+}): { title: string; label: string; footer: string } {
+  const message = formatCommandNotFound({
+    unknownCommand: input.unknownCommand,
+    helpCommand: input.helpCommand
+  });
+
+  return {
+    title: input.title ?? "command not found",
+    label: message.label,
+    footer: message.hint
+  };
+}

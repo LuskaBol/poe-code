@@ -13,13 +13,15 @@ export { createLogger, logger } from "./components/logger.js";
 export type { LoggerOutput } from "./components/logger.js";
 export { helpFormatter, formatCommand, formatUsage, formatOption, formatCommandList, formatOptionList } from "./components/help-formatter.js";
 export type { CommandInfo, OptionInfo } from "./components/help-formatter.js";
+export { formatCommandNotFound } from "./components/command-errors.js";
+export { formatCommandNotFoundPanel } from "./components/command-errors.js";
 
 // ACP rendering
 export * as acp from "./acp/index.js";
 
 // Prompts
 export * as prompts from "./prompts/index.js";
-export { intro, outro, note, select, text as promptText, confirm, password, spinner, isCancel, cancel, log } from "./prompts/index.js";
+export { intro, introPlain, outro, note, select, text as promptText, confirm, password, spinner, isCancel, cancel, log } from "./prompts/index.js";
 export type { SelectOptions, TextOptions, ConfirmOptions, PasswordOptions, SpinnerOptions } from "./prompts/index.js";
 export { promptTheme } from "./prompts/theme.js";
 

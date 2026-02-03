@@ -4,3 +4,5 @@ export { createLogger, logger } from "./logger.js";
 export type { LoggerOutput } from "./logger.js";
 export { helpFormatter, formatCommand, formatUsage, formatOption, formatCommandList, formatOptionList } from "./help-formatter.js";
 export type { CommandInfo, OptionInfo } from "./help-formatter.js";
+export { formatCommandNotFound } from "./command-errors.js";
+export { formatCommandNotFoundPanel } from "./command-errors.js";
