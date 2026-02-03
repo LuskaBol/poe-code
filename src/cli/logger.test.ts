@@ -6,6 +6,7 @@ const logWarn = vi.hoisted(() => vi.fn());
 const logError = vi.hoisted(() => vi.fn());
 const noteFn = vi.hoisted(() => vi.fn());
 const introFn = vi.hoisted(() => vi.fn());
+const introPlainFn = vi.hoisted(() => vi.fn());
 const outroFn = vi.hoisted(() => vi.fn());
 
 vi.mock("@poe-code/design-system", () => ({
@@ -16,6 +17,7 @@ vi.mock("@poe-code/design-system", () => ({
   },
   note: noteFn,
   intro: introFn,
+  introPlain: introPlainFn,
   outro: outroFn
 }));
 
@@ -28,6 +30,7 @@ describe("createLoggerFactory", () => {
     logError.mockClear();
     noteFn.mockClear();
     introFn.mockClear();
+    introPlainFn.mockClear();
     outroFn.mockClear();
   });
 
@@ -78,7 +81,7 @@ describe("createLoggerFactory", () => {
 
     logger.intro("configure claude-code");
 
-    expect(introFn).toHaveBeenCalledWith("[STYLED:configure claude-code]");
+    expect(introPlainFn).toHaveBeenCalledWith("[STYLED:configure claude-code]");
   });
 
   it("renders resolved option with label and value", () => {

@@ -48,6 +48,20 @@ describe("command help formatting", () => {
     expect(stripAnsi(help)).toContain("Poe - configure");
   });
 
+  it("includes parent command names in nested help output", () => {
+    const program = createHelpProgram();
+    const mcpCommand = program.commands.find((command) => command.name() === "mcp");
+    expect(mcpCommand).toBeDefined();
+
+    const mcpConfigure = mcpCommand?.commands.find(
+      (command) => command.name() === "configure"
+    );
+    expect(mcpConfigure).toBeDefined();
+
+    const help = mcpConfigure?.helpInformation() ?? "";
+    expect(stripAnsi(help)).toContain("Poe - mcp configure");
+  });
+
   it("lists isolated agents in wrap help output", () => {
     const program = createHelpProgram();
     const wrapCommand = program.commands.find(

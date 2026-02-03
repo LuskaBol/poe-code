@@ -7,6 +7,10 @@ export function intro(title: string): void {
   clack.intro(textComponent.intro(title));
 }
 
+export function introPlain(title: string): void {
+  clack.intro(title);
+}
+
 export function outro(message: string): void {
   clack.outro(message);
 }

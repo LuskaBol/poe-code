@@ -37,14 +37,23 @@ describe("poe-code command runner", () => {
 
     expect(baseRunner).toHaveBeenCalledWith(
       "claude",
-      ["-p", "Say hi"],
+      expect.arrayContaining(["-p", "Say hi", "--settings"]),
       expect.objectContaining({
         env: expect.objectContaining({
-          ANTHROPIC_API_KEY: "sk-test",
-          ANTHROPIC_BASE_URL: "https://api.poe.com"
+          POE_API_KEY: "sk-test"
         })
       })
     );
+
+    // Verify --settings contains apiKeyHelper and env.ANTHROPIC_BASE_URL
+    const callArgs = baseRunner.mock.calls[0][1] as string[];
+    const settingsIdx = callArgs.indexOf("--settings");
+    expect(settingsIdx).toBeGreaterThan(-1);
+    const settingsJson = JSON.parse(callArgs[settingsIdx + 1]);
+    expect(settingsJson).toEqual({
+      apiKeyHelper: "echo $POE_API_KEY",
+      env: { ANTHROPIC_BASE_URL: "https://api.poe.com" }
+    });
 
     expect(result).toEqual({ stdout: "OK\n", stderr: "", exitCode: 0 });
   });

@@ -9,6 +9,7 @@ import {
   type SkillScope
 } from "@poe-code/agent-skill-config";
 import { createExecutionResources, resolveCommandFlags } from "./shared.js";
+import { throwCommandNotFound } from "../command-not-found.js";
 
 const DEFAULT_SKILL_AGENT = "claude-code";
 
@@ -29,7 +30,16 @@ export function registerSkillCommand(
     .command("skill")
     .description("Skill directory commands")
     .addHelpText("after", buildHelpText())
-    .action(async function (this: Command) {
+    .action(function (this: Command) {
+      if (this.args.length > 0) {
+        throwCommandNotFound({
+          container,
+          scope: "skill",
+          unknownCommand: this.args.at(0) ?? "",
+          helpArgs: ["skill", "--help"],
+          moduleUrl: import.meta.url
+        });
+      }
       this.help();
     });
 

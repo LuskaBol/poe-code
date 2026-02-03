@@ -13,5 +13,6 @@ export default defineConfig({
     hookTimeout: 300000,
     include: ['*.test.ts'],
     maxWorkers: 1,
+    globalSetup: './setup.ts',
   },
 });

@@ -1,4 +1,10 @@
-import { intro, log, note, outro } from "@poe-code/design-system";
+import {
+  intro as designIntro,
+  introPlain,
+  log,
+  note,
+  outro
+} from "@poe-code/design-system";
 import chalk from "chalk";
 import type { LoggerFn } from "./types.js";
 import type { ErrorLogger, ErrorContext } from "./error-logger.js";
@@ -175,8 +181,11 @@ export function createLoggerFactory(
           emitter(title);
           return;
         }
-        const formatted = theme?.intro ? theme.intro(title) : title;
-        intro(formatted);
+        if (theme?.intro) {
+          introPlain(theme.intro(title));
+          return;
+        }
+        designIntro(title);
       },
       resolved(label, value) {
         if (emitter) {

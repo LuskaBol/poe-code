@@ -6,8 +6,10 @@ import type {
 import {
   applyIsolatedEnvRepairs,
   resolveIsolatedEnvDetails,
+  resolveCliSettings,
   isolatedConfigExists
 } from "./isolated-env.js";
+import { buildArgsWithMergedSettings } from "../utils/cli-settings-merge.js";
 import type { CliContainer } from "./container.js";
 import { ensureIsolatedConfigForService } from "./commands/ensure-isolated-config.js";
 
@@ -71,6 +73,16 @@ export function createPoeCodeCommandRunner(input: {
     let forwarded = args.slice(2);
     if (forwarded[0] === "--") {
       forwarded = forwarded.slice(1);
+    }
+
+    // Merge CLI settings if provider defines them
+    if (adapter.isolatedEnv.cliSettings) {
+      const resolvedSettings = await resolveCliSettings(
+        adapter.isolatedEnv.cliSettings,
+        container.env,
+        container.fs
+      );
+      forwarded = buildArgsWithMergedSettings(forwarded, resolvedSettings);
     }
 
     const mergedEnv = {

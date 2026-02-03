@@ -1,7 +1,6 @@
 import path from "node:path";
 import type { Command } from "commander";
 import { intro, outro, spinner } from "@poe-code/design-system";
-import { text } from "@poe-code/design-system";
 import type { CliContainer } from "../container.js";
 import {
   DEFAULT_TEXT_MODEL,
@@ -58,7 +57,7 @@ export function registerGenerateCommand(
     .action(async function (this: Command, promptArg?: string) {
       const flags = resolveCommandFlags(program);
       const resources = createExecutionResources(container, flags, "generate");
-            const prompt = ensurePrompt(promptArg, { type: "text", isDefault: true });
+      const prompt = ensurePrompt(promptArg, { type: "text", isDefault: true });
 
       const opts = resolveGenerateOptions(this);
       const params = parseParams(normalizeParamList(opts.param));
@@ -71,7 +70,7 @@ export function registerGenerateCommand(
         return;
       }
 
-      intro(text.intro("generate"));
+      intro("generate");
       const client = await resolveClient(container);
       const response = await withSpinner({
         message: `Generating with ${model}...`,
@@ -99,7 +98,7 @@ export function registerGenerateCommand(
     .action(async function (this: Command, promptArg?: string) {
       const flags = resolveCommandFlags(program);
       const resources = createExecutionResources(container, flags, "generate");
-            const prompt = ensurePrompt(promptArg, { type: "text", isDefault: false });
+      const prompt = ensurePrompt(promptArg, { type: "text", isDefault: false });
       const opts = resolveGenerateOptions(this);
       const params = parseParams(normalizeParamList(opts.param));
       const model = resolveModel("text", opts, container.env.variables);
@@ -111,7 +110,7 @@ export function registerGenerateCommand(
         return;
       }
 
-      intro(text.intro("generate text"));
+      intro("generate text");
       const client = await resolveClient(container);
       const response = await withSpinner({
         message: `Generating with ${model}...`,
@@ -152,7 +151,7 @@ function registerMediaSubcommand(
     .action(async function (this: Command, promptArg?: string) {
       const flags = resolveCommandFlags(program);
       const resources = createExecutionResources(container, flags, "generate");
-            const prompt = ensurePrompt(promptArg, { type, isDefault: false });
+      const prompt = ensurePrompt(promptArg, { type, isDefault: false });
       const opts = resolveGenerateOptions(this);
       const params = parseParams(normalizeParamList(opts.param));
       const model = resolveModel(type, opts, container.env.variables);
@@ -164,7 +163,7 @@ function registerMediaSubcommand(
         return;
       }
 
-      intro(text.intro(`generate ${type}`));
+      intro(`generate ${type}`);
       const client = await resolveClient(container);
 
       const saved = await withSpinner({
