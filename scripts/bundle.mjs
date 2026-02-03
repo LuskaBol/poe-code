@@ -6,24 +6,24 @@ import { readFile, readdir } from "node:fs/promises";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(currentDir, "..");
 
-// Read workspace package names from packages/*/package.json
+// Read workspace package names and create source aliases
 const packagesDir = path.join(rootDir, "packages");
 const workspaceDirs = await readdir(packagesDir, { withFileTypes: true });
-const workspacePackageNames = new Set(
-  await Promise.all(
-    workspaceDirs
-      .filter((d) => d.isDirectory())
-      .map(async (d) => {
-        const pkgPath = path.join(packagesDir, d.name, "package.json");
-        const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
-        return pkg.name;
-      })
-  )
-);
+const workspaceAliases = {};
+const workspacePackageNames = new Set();
+
+for (const dir of workspaceDirs.filter((d) => d.isDirectory())) {
+  const pkgPath = path.join(packagesDir, dir.name, "package.json");
+  const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
+  workspacePackageNames.add(pkg.name);
+  // Resolve workspace packages to source (Just-in-Time compilation)
+  workspaceAliases[pkg.name] = path.join(packagesDir, dir.name, "src/index.ts");
+}
 
 // External deps = root package.json dependencies (what users install via npm)
-// Workspace packages are bundled via packages: "bundle"
-const packageJson = JSON.parse(await readFile(path.join(rootDir, "package.json"), "utf8"));
+const packageJson = JSON.parse(
+  await readFile(path.join(rootDir, "package.json"), "utf8")
+);
 const runtimeDeps = Object.keys(packageJson.dependencies || {}).filter(
   (dep) => !workspacePackageNames.has(dep)
 );
@@ -51,11 +51,11 @@ await esbuild.build({
   format: "esm",
   outfile: path.join(rootDir, "dist/index.js"),
   external: externalDeps,
+  alias: workspaceAliases,
   banner: {
     js: "#!/usr/bin/env node",
   },
   sourcemap: true,
-  packages: "bundle",
   plugins: [stripShebangPlugin],
   loader: { ".md": "text", ".hbs": "text" },
 });
