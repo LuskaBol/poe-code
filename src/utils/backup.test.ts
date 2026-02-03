@@ -1,26 +1,16 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { Volume } from "memfs";
-import { createFsFromVolume } from "memfs";
 import path from "node:path";
 import type { FileSystem } from "./file-system.js";
 import { createBackup, restoreLatestBackup } from "./backup.js";
-
-function createMemFs(): { fs: FileSystem; vol: Volume } {
-  const vol = new Volume();
-  const fs = createFsFromVolume(vol);
-  return { fs: fs.promises as unknown as FileSystem, vol };
-}
+import { createMockFs } from "@poe-code/config-mutations/testing";
 
 describe("backup utilities", () => {
   let fs: FileSystem;
-  let vol: Volume;
   const root = "/home/user";
   const filePath = path.join(root, ".bashrc");
 
   beforeEach(async () => {
-    ({ fs, vol } = createMemFs());
-    vol.mkdirSync(root, { recursive: true });
-    await fs.writeFile(filePath, "export FOO=bar", { encoding: "utf8" });
+    fs = createMockFs({ [filePath]: "export FOO=bar" }, root);
   });
 
   it("creates timestamped backup when file exists", async () => {

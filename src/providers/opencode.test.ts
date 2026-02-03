@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { Volume, createFsFromVolume } from "memfs";
 import path from "node:path";
 import type { FileSystem } from "../utils/file-system.js";
 import {
@@ -12,12 +11,7 @@ import { createCliEnvironment } from "../cli/environment.js";
 import { createTestCommandContext } from "../../tests/test-command-context.js";
 import type { ProviderContext } from "../cli/service-registry.js";
 import { createLoggerFactory } from "../cli/logger.js";
-
-function createMemFs(): { fs: FileSystem; vol: Volume } {
-  const vol = new Volume();
-  const fs = createFsFromVolume(vol);
-  return { fs: fs.promises as unknown as FileSystem, vol };
-}
+import { createMockFs } from "@poe-code/config-mutations/testing";
 
 const withProviderPrefix = (model: string): string =>
   `${PROVIDER_NAME}/${model}`;
@@ -26,15 +20,13 @@ const DEFAULT_PROVIDER_MODEL = withProviderPrefix(DEFAULT_FRONTIER_MODEL);
 
 describe("opencode service", () => {
   let fs: FileSystem;
-  let vol: Volume;
   const homeDir = "/home/user";
   const configPath = path.join(homeDir, ".config", "opencode", "config.json");
   const authPath = path.join(homeDir, ".opencode-data", "auth.json");
   let env = createCliEnvironment({ cwd: homeDir, homeDir });
 
   beforeEach(() => {
-    ({ fs, vol } = createMemFs());
-    vol.mkdirSync(homeDir, { recursive: true });
+    fs = createMockFs({}, homeDir);
     env = createCliEnvironment({ cwd: homeDir, homeDir });
   });
 

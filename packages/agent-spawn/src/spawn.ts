@@ -1,6 +1,5 @@
-import { allAgents, resolveAgentId } from "@poe-code/agent-defs";
 import { spawn as spawnChildProcess } from "node:child_process";
-import { getSpawnConfig } from "./configs/index.js";
+import { resolveConfig } from "./configs/resolve-config.js";
 import type { SpawnContext, SpawnOptions, SpawnResult } from "./types.js";
 
 export async function spawn(
@@ -8,31 +7,31 @@ export async function spawn(
   options: SpawnOptions,
   _context?: SpawnContext
 ): Promise<SpawnResult> {
-  const resolvedAgentId = resolveAgentId(agentId);
-  if (!resolvedAgentId) {
-    throw new Error(`Unknown agent "${agentId}".`);
-  }
+  const resolved = resolveConfig(agentId);
+  const spawnConfig = resolved.spawnConfig;
 
-  const agentDefinition = allAgents.find((agent) => agent.id === resolvedAgentId);
-  if (!agentDefinition) {
-    throw new Error(`Unknown agent "${agentId}".`);
-  }
-
-  const spawnConfig = getSpawnConfig(resolvedAgentId);
-  if (spawnConfig === undefined) {
-    throw new Error(`Agent "${resolvedAgentId}" has no spawn config.`);
+  if (!spawnConfig) {
+    throw new Error(`Agent "${resolved.agentId}" has no spawn config.`);
   }
 
   if (spawnConfig.kind !== "cli") {
-    throw new Error(`Agent "${resolvedAgentId}" does not support CLI spawn.`);
+    throw new Error(`Agent "${resolved.agentId}" does not support CLI spawn.`);
   }
 
-  const binaryName = agentDefinition.binaryName;
-  if (!binaryName) {
-    throw new Error(`Agent "${resolvedAgentId}" has no binaryName.`);
+  if (!resolved.binaryName) {
+    throw new Error(`Agent "${resolved.agentId}" has no binaryName.`);
   }
 
-  const args: string[] = [spawnConfig.promptFlag, options.prompt];
+  const stdinMode =
+    options.useStdin && spawnConfig.stdinMode ? spawnConfig.stdinMode : undefined;
+
+  const args: string[] = stdinMode
+    ? [
+        spawnConfig.promptFlag,
+        ...(stdinMode.omitPrompt ? [] : [options.prompt]),
+        ...stdinMode.extraArgs
+      ]
+    : [spawnConfig.promptFlag, options.prompt];
 
   if (options.model && spawnConfig.modelFlag) {
     args.push(spawnConfig.modelFlag, options.model);
@@ -44,22 +43,38 @@ export async function spawn(
     args.push(...options.args);
   }
 
-  const child = spawnChildProcess(binaryName, args, {
+  const child = spawnChildProcess(resolved.binaryName, args, {
     cwd: options.cwd,
-    stdio: ["inherit", "pipe", "pipe"]
+    stdio: [stdinMode ? "pipe" : "inherit", "pipe", "pipe"]
   });
+
+  if (!child.stdout || !child.stderr) {
+    throw new Error(`Failed to spawn "${resolved.agentId}": missing stdio pipes.`);
+  }
+
+  const stdoutStream = child.stdout;
+  const stderrStream = child.stderr;
+
+  if (stdinMode) {
+    if (!child.stdin) {
+      throw new Error(`Failed to spawn "${resolved.agentId}": missing stdin pipe.`);
+    }
+    child.stdin.setDefaultEncoding("utf8");
+    child.stdin.write(options.prompt);
+    child.stdin.end();
+  }
 
   return new Promise<SpawnResult>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
 
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => {
+    stdoutStream.setEncoding("utf8");
+    stdoutStream.on("data", (chunk) => {
       stdout += chunk;
     });
 
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk) => {
+    stderrStream.setEncoding("utf8");
+    stderrStream.on("data", (chunk) => {
       stderr += chunk;
     });
 

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { isNotFound } from "@poe-code/config-mutations";
 import type { FileSystem } from "../../src/utils/file-system.js";
 import type { LlmClient } from "../../src/services/llm-client.js";
 import type { SnapshotEntry, SnapshotRequest } from "./snapshot-client.js";
@@ -211,11 +212,3 @@ export async function pruneSnapshots(
   return stale;
 }
 
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
-}

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { isNotFound } from "@poe-code/config-mutations";
 import type { CliEnvironment } from "./environment.js";
 import type { FileSystem } from "../utils/file-system.js";
 import type {
@@ -253,11 +254,3 @@ function expandHomeShortcut(env: CliEnvironment, input: string): string {
   return input;
 }
 
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
-}

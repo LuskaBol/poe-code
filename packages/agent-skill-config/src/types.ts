@@ -10,3 +10,10 @@ export interface ApplyOptions {
   observers?: MutationObservers;
 }
 
+export interface SkillFile {
+  /** Skill folder name (e.g., "poe-code-ralph-plan") */
+  name: string;
+  /** Content to write to SKILL.md */
+  content: string;
+}
+

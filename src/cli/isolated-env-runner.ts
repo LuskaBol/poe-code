@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { isNotFound } from "@poe-code/config-mutations";
 import type { ProviderIsolatedEnv } from "./service-registry.js";
 import type { CliEnvironment } from "./environment.js";
 import { resolveIsolatedEnvDetails } from "./isolated-env.js";
@@ -57,12 +58,7 @@ async function configExists(
     await fs.stat(filePath);
     return true;
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: string }).code === "ENOENT"
-    ) {
+    if (isNotFound(error)) {
       return false;
     }
     throw error;

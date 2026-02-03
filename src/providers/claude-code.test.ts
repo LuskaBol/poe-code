@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { Volume, createFsFromVolume } from "memfs";
 import path from "node:path";
 import type { FileSystem } from "../utils/file-system.js";
 import * as claudeService from "./claude-code.js";
@@ -12,6 +11,7 @@ import {
   stripModelNamespace
 } from "../cli/constants.js";
 import { createLoggerFactory } from "../cli/logger.js";
+import { createMockFs } from "@poe-code/config-mutations/testing";
 
 const resolveVariantModel = (
   variant: keyof typeof CLAUDE_CODE_VARIANTS
@@ -21,15 +21,8 @@ const CLAUDE_MODEL_HAIKU = resolveVariantModel("haiku");
 const CLAUDE_MODEL_SONNET = resolveVariantModel("sonnet");
 const CLAUDE_MODEL_OPUS = resolveVariantModel("opus");
 
-function createMemFs(): { fs: FileSystem; vol: Volume } {
-  const vol = new Volume();
-  const fs = createFsFromVolume(vol);
-  return { fs: fs.promises as unknown as FileSystem, vol };
-}
-
 describe("claude-code service", () => {
   let fs: FileSystem;
-  let vol: Volume;
   const home = "/home/user";
   const settingsPath = path.join(home, ".claude", "settings.json");
   let env = createCliEnvironment({
@@ -38,8 +31,7 @@ describe("claude-code service", () => {
   });
 
   beforeEach(async () => {
-    ({ fs, vol } = createMemFs());
-    vol.mkdirSync(home, { recursive: true });
+    fs = createMockFs({}, home);
     env = createCliEnvironment({
       cwd: home,
       homeDir: home

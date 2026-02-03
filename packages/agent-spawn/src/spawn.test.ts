@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import { spawn as spawnChildProcess, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { claudeCodeSpawnConfig } from "./configs/claude-code.js";
 import { codexSpawnConfig } from "./configs/codex.js";
+import { openCodeSpawnConfig } from "./configs/opencode.js";
 import { spawn } from "./spawn.js";
 
 vi.mock("node:child_process", () => ({
@@ -19,15 +20,25 @@ interface MockChildProcessOptions {
 function createMockChildProcess(
   options: MockChildProcessOptions = {}
 ): ChildProcessWithoutNullStreams {
+  const stdin = new PassThrough();
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   const child = new EventEmitter() as unknown as ChildProcessWithoutNullStreams;
   const childStreams = child as unknown as {
+    stdin: PassThrough;
     stdout: PassThrough;
     stderr: PassThrough;
   };
+  childStreams.stdin = stdin;
   childStreams.stdout = stdout;
   childStreams.stderr = stderr;
+
+  let capturedStdin = "";
+  stdin.setEncoding("utf8");
+  stdin.on("data", (chunk) => {
+    capturedStdin += chunk;
+  });
+  (child as any).__capturedStdin = () => capturedStdin;
 
   const exitCode = options.exitCode ?? 0;
   const output = options.stdout ?? "";
@@ -117,5 +128,78 @@ describe("spawn", () => {
     expect(spawnMock).toHaveBeenCalledTimes(1);
     const [, , options] = spawnMock.mock.calls[0];
     expect(options).toEqual(expect.objectContaining({ cwd: "/tmp/poe-agent-spawn" }));
+  });
+
+  it("writes prompt to stdin when useStdin is enabled and supported", async () => {
+    const cwd = "/repo";
+    const spawnMock = vi.mocked(spawnChildProcess).mockReturnValue(
+      createMockChildProcess({ stdout: "ok\n", exitCode: 0 })
+    );
+
+    const result = await spawn("codex", { prompt: "hello", cwd, useStdin: true });
+
+    expect(result).toEqual({ stdout: "ok\n", stderr: "", exitCode: 0 });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    const [command, args, spawnOptions] = spawnMock.mock.calls[0]!;
+    expect(command).toBe("codex");
+    expect(args).toEqual([
+      codexSpawnConfig.promptFlag,
+      ...(codexSpawnConfig.stdinMode?.extraArgs ?? []),
+      ...codexSpawnConfig.defaultArgs
+    ]);
+    expect(spawnOptions).toMatchObject({
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+
+    const child = spawnMock.mock.results[0]?.value as any;
+    expect(typeof child?.__capturedStdin).toBe("function");
+    expect(child.__capturedStdin()).toBe("hello");
+  });
+
+  it("writes prompt to stdin for claude-code when supported", async () => {
+    const spawnMock = vi.mocked(spawnChildProcess).mockReturnValue(
+      createMockChildProcess({ stdout: "ok\n", exitCode: 0 })
+    );
+
+    await spawn("claude-code", { prompt: "hi", useStdin: true });
+
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    const [command, args, spawnOptions] = spawnMock.mock.calls[0]!;
+    expect(command).toBe("claude");
+    expect(args).toEqual([
+      claudeCodeSpawnConfig.promptFlag,
+      ...(claudeCodeSpawnConfig.stdinMode?.extraArgs ?? []),
+      ...claudeCodeSpawnConfig.defaultArgs
+    ]);
+    expect(spawnOptions).toMatchObject({
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+
+    const child = spawnMock.mock.results[0]?.value as any;
+    expect(child.__capturedStdin()).toBe("hi");
+  });
+
+  it("falls back to prompt args when stdin is unsupported", async () => {
+    const spawnMock = vi.mocked(spawnChildProcess).mockReturnValue(
+      createMockChildProcess({ stdout: "ok\n", exitCode: 0 })
+    );
+
+    await spawn("opencode", { prompt: "hello", useStdin: true });
+
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    const [command, args, spawnOptions] = spawnMock.mock.calls[0]!;
+    expect(command).toBe("opencode");
+    expect(args).toEqual([
+      openCodeSpawnConfig.promptFlag,
+      "hello",
+      ...openCodeSpawnConfig.defaultArgs
+    ]);
+    expect(spawnOptions).toMatchObject({
+      stdio: ["inherit", "pipe", "pipe"]
+    });
+
+    const child = spawnMock.mock.results[0]?.value as any;
+    expect(child.__capturedStdin()).toBe("");
   });
 });
