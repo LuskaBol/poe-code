@@ -118,3 +118,73 @@ describe("usage balance command", () => {
     ).toBe(true);
   });
 });
+
+describe("usage list command", () => {
+  let fs: FileSystem;
+  let logs: string[];
+  let httpClient: HttpClient;
+
+  beforeEach(() => {
+    fs = createMemfs(homeDir);
+    logs = [];
+    httpClient = vi.fn();
+  });
+
+  it("fetches and displays usage history from GET /usage/points_history with limit=20", async () => {
+    fs = createCredentialsVolume("test-key");
+    const entries = [
+      {
+        timestamp: "2024-01-15T10:30:00Z",
+        model: "Claude-Sonnet-4.5",
+        cost: -50
+      },
+      {
+        timestamp: "2024-01-15T09:15:00Z",
+        model: "gpt-5.2",
+        cost: -30
+      }
+    ];
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        length: 2,
+        data: entries
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining("/usage/points_history?limit=20"),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-key"
+        })
+      })
+    );
+
+    expect(
+      logs.some((message) => message.includes("Usage History (2 entries)"))
+    ).toBe(true);
+
+    const tableOutput = logs.join("\n");
+    expect(tableOutput).toContain("Claude-Sonnet-4.5");
+    expect(tableOutput).toContain("gpt-5.2");
+    expect(tableOutput).toContain("2024-01-15 10:30");
+    expect(tableOutput).toContain("2024-01-15 09:15");
+  });
+});
