@@ -26,6 +26,7 @@
     "@poe-code/agent-spawn": "*",
     "@poe-code/config-mutations": "*",
     "@poe-code/design-system": "*",
+    "@poe-code/worktree": "*",
     "yaml": "^2.8.2"
   }
 }

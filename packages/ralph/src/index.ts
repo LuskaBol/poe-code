@@ -1,4 +1,4 @@
-import { buildLoop, type BuildLoopOptions, type BuildResult } from "./build/loop.js";
+import { buildLoop, type BuildLoopOptions, type BuildResult, type WorktreeOptions } from "./build/loop.js";
 
 export type { Plan, Story } from "./plan/types.js";
 export { parsePlan } from "./plan/parser.js";
@@ -10,6 +10,8 @@ export { logActivity } from "./log/activity.js";
 export type { ActivityLogFileSystem, LogActivityOptions } from "./log/activity.js";
 export { loadConfig } from "./config/loader.js";
 export type { RalphConfig } from "./config/loader.js";
+
+export type { WorktreeOptions };
 
 export type RalphBuildOptions = Omit<BuildLoopOptions, "cwd"> & {
   /**

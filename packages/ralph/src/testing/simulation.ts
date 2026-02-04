@@ -88,7 +88,6 @@ export type SimulationOptions = {
       | "noCommit"
       | "agent"
       | "staleSeconds"
-      | "progressPath"
       | "guardrailsPath"
       | "errorsLogPath"
       | "activityLogPath"
@@ -181,7 +180,6 @@ const DEFAULT_PROMPT_TEMPLATE = [
   "{{STORY_BLOCK}}",
   "",
   "PRD: {{PLAN_PATH}}",
-  "Progress: {{PROGRESS_PATH}}",
   "Guardrails: {{GUARDRAILS_PATH}}",
   "Errors: {{ERRORS_LOG_PATH}}",
   "Activity: {{ACTIVITY_LOG_PATH}}",
@@ -283,7 +281,6 @@ export function createRalphSimulation(options: SimulationOptions) {
 
   const planPath = "/.agents/tasks/plan.yaml";
   const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
-  const progressPath = options.config?.progressPath ?? ".poe-code-ralph/progress.md";
   const guardrailsPath = options.config?.guardrailsPath ?? ".poe-code-ralph/guardrails.md";
   const errorsLogPath = options.config?.errorsLogPath ?? ".poe-code-ralph/errors.log";
   const activityLogPath = options.config?.activityLogPath ?? ".poe-code-ralph/activity.log";
@@ -291,7 +288,6 @@ export function createRalphSimulation(options: SimulationOptions) {
   const initialFiles: Record<string, string> = {
     [planPath]: stringify(prd),
     [promptPath]: promptTemplate,
-    [`/${progressPath}`]: "# Progress\n",
     [`/${guardrailsPath}`]: "# Guardrails\n",
     [`/${errorsLogPath}`]: "",
     [`/${activityLogPath}`]: "",
@@ -399,7 +395,6 @@ export function createRalphSimulation(options: SimulationOptions) {
 
       const result = await buildLoop({
         planPath,
-        progressPath,
         guardrailsPath,
         errorsLogPath,
         activityLogPath,

@@ -69,6 +69,8 @@ type RalphBuildCommandOptions = {
   commit?: boolean;
   maxFailures?: string;
   pauseOnOverbake?: boolean;
+  worktree?: boolean;
+  worktreeName?: string;
 };
 
 type RalphInstallCommandOptions = {
@@ -433,6 +435,8 @@ export function registerRalphCommand(
     .option("--no-commit", "Instruct the agent not to commit changes")
     .option("--max-failures <n>", "Warn after <n> consecutive failures (default 3)")
     .option("--pause-on-overbake", "Pause and prompt when overbaking is detected")
+    .option("--worktree", "Run the build loop in an isolated git worktree")
+    .option("--worktree-name <name>", "Name for the worktree (default: derived from plan file name)")
     .argument("[iterations]", "Number of iterations to run (default 25)")
     .action(async function (this: Command, iterations?: string) {
       const flags = resolveCommandFlags(program);
@@ -480,9 +484,13 @@ export function registerRalphCommand(
           typeof options.maxFailures === "string" ? resolveMaxFailures(options.maxFailures) : undefined;
         const pauseOnOverbake = Boolean(options.pauseOnOverbake);
 
+        const worktreeEnabled = Boolean(options.worktree);
+        const worktree = worktreeEnabled
+          ? { enabled: true, name: options.worktreeName?.trim() || undefined }
+          : undefined;
+
         await ralphBuild({
           planPath,
-          progressPath: config.progressPath,
           guardrailsPath: config.guardrailsPath,
           errorsLogPath: config.errorsLogPath,
           activityLogPath: config.activityLogPath,
@@ -492,7 +500,8 @@ export function registerRalphCommand(
           agent,
           noCommit,
           staleSeconds,
-          cwd: container.env.cwd
+          cwd: container.env.cwd,
+          worktree
         });
 
         resources.logger.success("Ralph run finished.");

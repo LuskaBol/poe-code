@@ -5,7 +5,6 @@ import { isNotFound } from "@poe-code/config-mutations";
 
 export type RalphConfig = {
   planPath?: string;
-  progressPath?: string;
   guardrailsPath?: string;
   errorsLogPath?: string;
   activityLogPath?: string;
@@ -115,8 +114,6 @@ export async function loadConfig(
 
   const planPath = pickOptionalString(config, "planPath");
   if (planPath) result.planPath = planPath;
-  const progressPath = pickOptionalString(config, "progressPath");
-  if (progressPath) result.progressPath = progressPath;
   const guardrailsPath = pickOptionalString(config, "guardrailsPath");
   if (guardrailsPath) result.guardrailsPath = guardrailsPath;
   const errorsLogPath = pickOptionalString(config, "errorsLogPath");

@@ -2,7 +2,6 @@ import { renderTemplate } from "@poe-code/config-mutations";
 
 export type PromptVariableName =
   | "PLAN_PATH"
-  | "PROGRESS_PATH"
   | "REPO_ROOT"
   | "REQUEST"
   | "OUT_PATH"

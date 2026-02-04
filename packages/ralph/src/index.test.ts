@@ -8,7 +8,8 @@ import {
   type RalphBuildResult,
   type RalphPlanOptions,
   type RalphPlanResult,
-  type Story
+  type Story,
+  type WorktreeOptions
 } from "@poe-code/ralph";
 
 describe("Ralph SDK public exports", () => {
@@ -44,5 +45,26 @@ describe("Ralph SDK public exports", () => {
     void planResult;
     void prd;
     void story;
+  });
+
+  it("exports WorktreeOptions type and accepts worktree in RalphBuildOptions", () => {
+    const worktree: WorktreeOptions = { enabled: true, name: "my-worktree" };
+    const options: RalphBuildOptions = {
+      planPath: ".agents/tasks/plan.yaml",
+      maxIterations: 5,
+      noCommit: false,
+      agent: "codex",
+      staleSeconds: 60,
+      worktree
+    };
+
+    void options;
+  });
+
+  it("RalphBuildResult includes optional worktreeBranch", () => {
+    type HasWorktreeBranch = RalphBuildResult extends { worktreeBranch?: string } ? true : false;
+    const check: HasWorktreeBranch = true;
+
+    void check;
   });
 });

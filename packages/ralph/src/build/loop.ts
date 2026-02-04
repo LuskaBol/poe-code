@@ -1,5 +1,6 @@
-import { dirname, resolve as resolvePath } from "node:path";
+import { basename, dirname, resolve as resolvePath } from "node:path";
 import * as fsPromises from "node:fs/promises";
+import { execSync } from "node:child_process";
 import { lockFile } from "../lock/lock.js";
 import {
   spawnStreaming,
@@ -8,6 +9,11 @@ import {
 } from "@poe-code/agent-spawn";
 import { isCancel, select as clackSelect } from "@poe-code/design-system";
 import { isNotFound } from "@poe-code/config-mutations";
+import {
+  createWorktree,
+  updateWorktreeStatus as updateWorktreeRegistryStatus,
+  type WorktreeDeps
+} from "@poe-code/worktree";
 import { detectCompletion } from "../completion/detector.js";
 import { getChangedFiles, getCommitList, getDirtyFiles, getHead } from "../git/utils.js";
 import { parsePlan } from "../plan/parser.js";
@@ -30,6 +36,7 @@ type BuildLoopFileSystem = {
     options?: { encoding?: BufferEncoding }
   ): Promise<void>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+  copyFile?(src: string, dest: string): Promise<void>;
 };
 
 type SpawnFn = (
@@ -82,6 +89,7 @@ type GitDeps = {
   getCommitList(cwd: string, before: string, after: string): { hash: string; subject: string }[];
   getChangedFiles(cwd: string, before: string, after: string): string[];
   getDirtyFiles(cwd: string): string[];
+  getCurrentBranch?(cwd: string): string;
 };
 
 export type BuildIterationStatus = "success" | "failure" | "incomplete";
@@ -101,11 +109,16 @@ export type BuildResult = {
   storiesDone: string[];
   iterations: BuildIterationResult[];
   stopReason: "no_actionable_stories" | "max_iterations" | "overbake_abort";
+  worktreeBranch?: string;
+};
+
+export type WorktreeOptions = {
+  enabled: boolean;
+  name?: string;
 };
 
 export type BuildLoopOptions = {
   planPath: string;
-  progressPath?: string;
   guardrailsPath?: string;
   errorsLogPath?: string;
   activityLogPath?: string;
@@ -116,14 +129,17 @@ export type BuildLoopOptions = {
   agent: string;
   staleSeconds: number;
   cwd: string;
+  worktree?: WorktreeOptions;
   deps?: Partial<{
     fs: BuildLoopFileSystem;
     lock: LockFn;
     spawn: SpawnFn;
     git: GitDeps;
+    worktree: WorktreeDeps;
     now(): Date;
     runId: string;
     stderr: { write(chunk: string): void };
+    stdout: { write(chunk: string): void };
     promptOverbake(
       args: {
         storyId: string;
@@ -198,6 +214,40 @@ async function appendToErrorsLog(
 
 function lockPlanFile(path: string): Promise<LockRelease> {
   return lockFile(path, { retries: 20, minTimeout: 25, maxTimeout: 250 });
+}
+
+function getCurrentBranch(cwd: string): string {
+  try {
+    return execSync("git rev-parse --abbrev-ref HEAD", {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    }).trim();
+  } catch {
+    return "HEAD";
+  }
+}
+
+function deriveWorktreeName(planPath: string): string {
+  const base = basename(planPath);
+  const withoutExt = base.replace(/\.(ya?ml|json)$/i, "");
+  return withoutExt;
+}
+
+function defaultExec(
+  command: string,
+  options?: { cwd?: string }
+): Promise<{ stdout: string; stderr: string }> {
+  const result = execSync(command, {
+    cwd: options?.cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  return Promise.resolve({ stdout: result, stderr: "" });
+}
+
+async function defaultCopyFile(src: string, dest: string): Promise<void> {
+  await fsPromises.copyFile(src, dest);
 }
 
 function formatQualityGates(gates: readonly string[]): string {
@@ -314,12 +364,54 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
   };
   const nowFn = options.deps?.now ?? (() => new Date());
   const stderr = options.deps?.stderr ?? process.stderr;
+  const stdout = options.deps?.stdout ?? process.stdout;
   const promptOverbake = options.deps?.promptOverbake ?? defaultPromptOverbake;
+  const copyFile = fs.copyFile ?? defaultCopyFile;
 
-  const cwd = absPath(options.cwd, ".");
-  const planPath = absPath(cwd, options.planPath);
+  let cwd = absPath(options.cwd, ".");
+  const originalCwd = cwd;
+  let planPath = absPath(cwd, options.planPath);
 
-  const progressPath = absPath(cwd, options.progressPath ?? ".poe-code-ralph/progress.md");
+  let worktreeBranch: string | undefined;
+  let worktreeName: string | undefined;
+
+  if (options.worktree?.enabled) {
+    const worktreeDeps: WorktreeDeps = options.deps?.worktree ?? {
+      fs: {
+        readFile: (p: string, enc: BufferEncoding) => fs.readFile(p, enc),
+        writeFile: (p: string, data: string, opts?: { encoding?: BufferEncoding }) =>
+          fs.writeFile(p, data, opts),
+        mkdir: (p: string, opts?: { recursive?: boolean }) => fs.mkdir(p, opts)
+      },
+      exec: defaultExec
+    };
+
+    worktreeName = options.worktree.name ?? deriveWorktreeName(options.planPath);
+    const baseBranch = (git.getCurrentBranch ?? getCurrentBranch)(cwd);
+
+    const entry = await createWorktree({
+      cwd,
+      name: worktreeName,
+      baseBranch,
+      source: "ralph-build",
+      agent: options.agent,
+      planPath: options.planPath,
+      deps: worktreeDeps
+    });
+
+    worktreeBranch = entry.branch;
+    const worktreePath = entry.path;
+
+    // Copy the plan file into the worktree
+    const destPlanPath = absPath(worktreePath, options.planPath);
+    await fs.mkdir(dirname(destPlanPath), { recursive: true });
+    await copyFile(planPath, destPlanPath);
+
+    // Switch cwd and planPath to the worktree
+    cwd = worktreePath;
+    planPath = destPlanPath;
+  }
+
   const guardrailsPath = absPath(cwd, options.guardrailsPath ?? ".poe-code-ralph/guardrails.md");
   const errorsLogPath = absPath(cwd, options.errorsLogPath ?? ".poe-code-ralph/errors.log");
   const activityLogPath = absPath(cwd, options.activityLogPath ?? ".poe-code-ralph/activity.log");
@@ -350,13 +442,13 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     });
 
     if (!selection) {
-      return {
+      return finalizeWorktreeResult({
         runId,
         iterationsCompleted: iterations.length,
         storiesDone,
         iterations,
         stopReason: "no_actionable_stories"
-      };
+      });
     }
 
     const story = selection.story;
@@ -372,7 +464,6 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     const template = await fs.readFile(promptTemplatePath, "utf8");
     const prompt = renderPrompt(template, {
       PLAN_PATH: planPath,
-      PROGRESS_PATH: progressPath,
       REPO_ROOT: cwd,
       GUARDRAILS_PATH: guardrailsPath,
       ERRORS_LOG_PATH: errorsLogPath,
@@ -406,12 +497,12 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
         useStdin: true
       });
 
-      const stdout = result.stdout ?? "";
+      const agentStdout = result.stdout ?? "";
       const agentStderr = result.stderr ?? "";
       stderrForErrorsLog = agentStderr;
 
       combinedOutput = [
-        stdout ? `# stdout\n${stdout}` : "",
+        agentStdout ? `# stdout\n${agentStdout}` : "",
         agentStderr ? `# stderr\n${agentStderr}` : ""
       ]
         .filter(Boolean)
@@ -421,7 +512,7 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
         status = "failure";
         combinedOutput = `${combinedOutput}${formatAgentSetupHint(options.agent)}`;
         stderrForErrorsLog = `${agentStderr}${formatAgentSetupHint(options.agent)}`;
-      } else if (detectCompletion(stdout)) {
+      } else if (detectCompletion(agentStdout)) {
         status = "success";
       } else {
         status = "incomplete";
@@ -541,21 +632,58 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     });
 
     if (overbakeAction === "abort") {
-      return {
+      return finalizeWorktreeResult({
         runId,
         iterationsCompleted: iterations.length,
         storiesDone,
         iterations,
         stopReason: "overbake_abort"
-      };
+      });
     }
   }
 
-  return {
+  return finalizeWorktreeResult({
     runId,
     iterationsCompleted: iterations.length,
     storiesDone,
     iterations,
     stopReason: "max_iterations"
-  };
+  });
+
+  async function finalizeWorktreeResult(result: BuildResult): Promise<BuildResult> {
+    if (!options.worktree?.enabled || !worktreeName) {
+      return result;
+    }
+
+    const worktreeDeps: WorktreeDeps = options.deps?.worktree ?? {
+      fs: {
+        readFile: (p: string, enc: BufferEncoding) => fs.readFile(p, enc),
+        writeFile: (p: string, data: string, opts?: { encoding?: BufferEncoding }) =>
+          fs.writeFile(p, data, opts),
+        mkdir: (p: string, opts?: { recursive?: boolean }) => fs.mkdir(p, opts)
+      },
+      exec: defaultExec
+    };
+
+    const worktreeStatus = result.storiesDone.length > 0 ? "done" : "failed";
+
+    await updateWorktreeRegistryStatus(originalCwd, worktreeName, worktreeStatus, {
+      fs: worktreeDeps.fs
+    });
+
+    result.worktreeBranch = worktreeBranch;
+
+    if (worktreeBranch) {
+      const mergeHint = [
+        "",
+        `Worktree build finished on branch: ${worktreeBranch}`,
+        `To merge the changes, run:`,
+        `  git merge ${worktreeBranch}`,
+        ""
+      ].join("\n");
+      stdout.write(mergeHint);
+    }
+
+    return result;
+  }
 }
