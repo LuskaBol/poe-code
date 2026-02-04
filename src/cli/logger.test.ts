@@ -18,7 +18,8 @@ vi.mock("@poe-code/design-system", () => ({
   note: noteFn,
   intro: introFn,
   introPlain: introPlainFn,
-  outro: outroFn
+  outro: outroFn,
+  resolveOutputFormat: () => "terminal"
 }));
 
 import { createLoggerFactory } from "./logger.js";
