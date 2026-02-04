@@ -463,7 +463,7 @@ describe("ralph agent log command", () => {
     vi.restoreAllMocks();
   });
 
-  it("defaults to .ralph/activity.log", async () => {
+  it("defaults to .poe-code-ralph/activity.log", async () => {
     const fs = createMemFs();
     const container = createCliContainer({
       fs,

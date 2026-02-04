@@ -99,7 +99,7 @@ Rough estimates:
 - Large file: 5000+ tokens
 - Conversation history: 100-500 tokens per exchange
 
-Track allocations in `.ralph/context-log.md` to stay aware.
+Track allocations in `.poe-code-ralph/context-log.md` to stay aware.
 
 ## Theory vs Implementation
 

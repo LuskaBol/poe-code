@@ -1,5 +1,5 @@
 ---
-name: poe-code:ralph:plan
+name: poe-code-ralph-plan
 description: 'Generate a Ralph plan (YAML) from a user request. Triggers on: create a plan, write plan for, plan this feature, ralph plan.'
 ---
 

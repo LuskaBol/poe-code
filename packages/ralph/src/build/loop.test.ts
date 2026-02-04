@@ -14,8 +14,8 @@ const noLock = async () => async () => {};
 describe("buildLoop", () => {
   it("completes a story and marks it done", async () => {
     const planPath = "/.agents/tasks/plan.json";
-    const promptPath = "/.agents/ralph/PROMPT_build.md";
-    const errorsLogPath = "/.ralph/errors.log";
+    const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
+    const errorsLogPath = "/.poe-code-ralph/errors.log";
     const runId = "20260201-221816-14669";
 
     const fs = createMemFs({
@@ -100,15 +100,15 @@ describe("buildLoop", () => {
     expect(updated.stories[0]?.status).toBe("done");
     expect(updated.stories[0]?.completedAt).toBeTruthy();
 
-    const logPath = `/.ralph/runs/run-${runId}-iter-1.log`;
-    const metaPath = `/.ralph/runs/run-${runId}-iter-1.md`;
+    const logPath = `/.poe-code-ralph/runs/run-${runId}-iter-1.log`;
+    const metaPath = `/.poe-code-ralph/runs/run-${runId}-iter-1.md`;
     expect(await fs.readFile(logPath, "utf8")).toContain("<promise>COMPLETE</promise>");
     expect(await fs.readFile(metaPath, "utf8")).toContain("- Status: success");
   });
 
   it("uses configured paths for prompt variables and errors log", async () => {
     const planPath = "/.agents/tasks/plan.json";
-    const promptPath = "/.agents/ralph/PROMPT_build.md";
+    const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
     const runId = "20260201-221816-14669";
 
     const fs = createMemFs({
@@ -189,8 +189,8 @@ describe("buildLoop", () => {
 
   it("resets story to open when agent fails", async () => {
     const planPath = "/.agents/tasks/plan.json";
-    const promptPath = "/.agents/ralph/PROMPT_build.md";
-    const errorsLogPath = "/.ralph/errors.log";
+    const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
+    const errorsLogPath = "/.poe-code-ralph/errors.log";
     const runId = "20260201-221816-14669";
 
     const fs = createMemFs({
@@ -256,14 +256,14 @@ describe("buildLoop", () => {
     expect(updated.stories[0]?.status).toBe("open");
 
     expect(await fs.readFile(errorsLogPath, "utf8")).toContain("boom");
-    const metaPath = `/.ralph/runs/run-${runId}-iter-1.md`;
+    const metaPath = `/.poe-code-ralph/runs/run-${runId}-iter-1.md`;
     expect(await fs.readFile(metaPath, "utf8")).toContain("- Status: failure");
   });
 
   it("detects completion only from stdout (not stderr)", async () => {
     const planPath = "/.agents/tasks/plan.json";
-    const promptPath = "/.agents/ralph/PROMPT_build.md";
-    const errorsLogPath = "/.ralph/errors.log";
+    const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
+    const errorsLogPath = "/.poe-code-ralph/errors.log";
     const runId = "20260201-221816-14669";
 
     const fs = createMemFs({
@@ -327,8 +327,8 @@ describe("buildLoop", () => {
 
   it("logs an overbaking warning after max failures and continues by default", async () => {
     const planPath = "/.agents/tasks/plan.json";
-    const promptPath = "/.agents/ralph/PROMPT_build.md";
-    const errorsLogPath = "/.ralph/errors.log";
+    const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
+    const errorsLogPath = "/.poe-code-ralph/errors.log";
     const runId = "20260201-221816-14669";
 
     const fs = createMemFs({
@@ -400,8 +400,8 @@ describe("buildLoop", () => {
 
   it("does not warn when failures are intermittent", async () => {
     const planPath = "/.agents/tasks/plan.json";
-    const promptPath = "/.agents/ralph/PROMPT_build.md";
-    const errorsLogPath = "/.ralph/errors.log";
+    const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
+    const errorsLogPath = "/.poe-code-ralph/errors.log";
     const runId = "20260201-221816-14669";
 
     const fs = createMemFs({
@@ -470,8 +470,8 @@ describe("buildLoop", () => {
 
   it("pauses on overbake and supports continue/skip/abort decisions", async () => {
     const planPath = "/.agents/tasks/plan.json";
-    const promptPath = "/.agents/ralph/PROMPT_build.md";
-    const errorsLogPath = "/.ralph/errors.log";
+    const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
+    const errorsLogPath = "/.poe-code-ralph/errors.log";
     const runId = "20260201-221816-14669";
 
     const fs = createMemFs({

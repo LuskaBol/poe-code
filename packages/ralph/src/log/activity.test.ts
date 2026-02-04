@@ -27,7 +27,7 @@ describe("logActivity", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 1, 2, 3, 4, 5));
 
-    const path = "/.ralph/activity.log";
+    const path = "/.poe-code-ralph/activity.log";
 
     await logActivity(path, "first", { fs });
     await logActivity(path, "second", { fs });

@@ -71,11 +71,13 @@ export async function spawn(
     stdoutStream.setEncoding("utf8");
     stdoutStream.on("data", (chunk) => {
       stdout += chunk;
+      if (options.tee?.stdout) options.tee.stdout.write(chunk);
     });
 
     stderrStream.setEncoding("utf8");
     stderrStream.on("data", (chunk) => {
       stderr += chunk;
+      if (options.tee?.stderr) options.tee.stderr.write(chunk);
     });
 
     child.on("error", (error) => {

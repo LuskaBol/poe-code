@@ -145,7 +145,7 @@ The Ralph hooks can automatically detect some patterns and suggest signs:
 - **Repeated errors**: Same test failing → "Check the test assumptions"
 - **Large changes**: Big diffs → "Consider smaller increments"
 
-These are logged in `.ralph/failures.md` and can be promoted to guardrails.
+These are logged in `.poe-code-ralph/failures.md` and can be promoted to guardrails.
 
 ## Using Signs Effectively
 
@@ -166,7 +166,7 @@ These are logged in `.ralph/failures.md` and can be promoted to guardrails.
 ## Integration with Ralph
 
 Signs are:
-1. Stored in `.ralph/guardrails.md`
+1. Stored in `.poe-code-ralph/guardrails.md`
 2. Injected into context at the start of each iteration
 3. Referenced when relevant situations arise
 4. Updated based on observed failures

@@ -1,7 +1,11 @@
 import { dirname, resolve as resolvePath } from "node:path";
 import * as fsPromises from "node:fs/promises";
 import { lockFile } from "../lock/lock.js";
-import { spawn as defaultSpawn } from "@poe-code/agent-spawn";
+import {
+  spawnStreaming,
+  renderAcpStream,
+  type AcpEvent
+} from "@poe-code/agent-spawn";
 import { isCancel, select as clackSelect } from "@poe-code/design-system";
 import { isNotFound } from "@poe-code/config-mutations";
 import { detectCompletion } from "../completion/detector.js";
@@ -38,6 +42,40 @@ type SpawnFn = (
     useStdin?: boolean;
   }
 ) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+
+async function defaultStreamingSpawn(
+  agentId: string,
+  options: { prompt: string; cwd?: string; useStdin?: boolean }
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const { events, done } = spawnStreaming({
+    agentId,
+    prompt: options.prompt,
+    cwd: options.cwd,
+    useStdin: options.useStdin
+  });
+
+  let agentText = "";
+
+  async function* tapEvents(
+    source: AsyncIterable<AcpEvent>
+  ): AsyncGenerator<AcpEvent> {
+    for await (const event of source) {
+      if (event.event === "agent_message") {
+        agentText += (event as { text: string }).text;
+      }
+      yield event;
+    }
+  }
+
+  await renderAcpStream(tapEvents(events));
+  const result = await done;
+
+  return {
+    stdout: agentText,
+    stderr: result.stderr,
+    exitCode: result.exitCode
+  };
+}
 
 type GitDeps = {
   getHead(cwd: string): string | null;
@@ -267,7 +305,7 @@ async function defaultPromptOverbake(args: {
 export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult> {
   const fs = options.deps?.fs ?? (fsPromises as unknown as BuildLoopFileSystem);
   const lock = options.deps?.lock ?? lockPlanFile;
-  const spawn = options.deps?.spawn ?? (defaultSpawn as unknown as SpawnFn);
+  const spawn = options.deps?.spawn ?? defaultStreamingSpawn;
   const git: GitDeps = options.deps?.git ?? {
     getHead,
     getCommitList,
@@ -281,15 +319,15 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
   const cwd = absPath(options.cwd, ".");
   const planPath = absPath(cwd, options.planPath);
 
-  const progressPath = absPath(cwd, options.progressPath ?? ".ralph/progress.md");
-  const guardrailsPath = absPath(cwd, options.guardrailsPath ?? ".ralph/guardrails.md");
-  const errorsLogPath = absPath(cwd, options.errorsLogPath ?? ".ralph/errors.log");
-  const activityLogPath = absPath(cwd, options.activityLogPath ?? ".ralph/activity.log");
-  const guardrailsRef = absPath(cwd, ".agents/ralph/references/GUARDRAILS.md");
-  const contextRef = absPath(cwd, ".agents/ralph/references/CONTEXT_ENGINEERING.md");
-  const activityCmd = absPath(cwd, ".agents/ralph/log-activity.sh");
-  const promptTemplatePath = absPath(cwd, ".agents/ralph/PROMPT_build.md");
-  const runsDir = absPath(cwd, ".ralph/runs");
+  const progressPath = absPath(cwd, options.progressPath ?? ".poe-code-ralph/progress.md");
+  const guardrailsPath = absPath(cwd, options.guardrailsPath ?? ".poe-code-ralph/guardrails.md");
+  const errorsLogPath = absPath(cwd, options.errorsLogPath ?? ".poe-code-ralph/errors.log");
+  const activityLogPath = absPath(cwd, options.activityLogPath ?? ".poe-code-ralph/activity.log");
+  const guardrailsRef = absPath(cwd, ".agents/poe-code-ralph/references/GUARDRAILS.md");
+  const contextRef = absPath(cwd, ".agents/poe-code-ralph/references/CONTEXT_ENGINEERING.md");
+  const activityCmd = absPath(cwd, ".agents/poe-code-ralph/log-activity.sh");
+  const promptTemplatePath = absPath(cwd, ".agents/poe-code-ralph/PROMPT_build.md");
+  const runsDir = absPath(cwd, ".poe-code-ralph/runs");
 
   const runId = options.deps?.runId ?? createRunId(nowFn());
 
@@ -327,7 +365,7 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     const logPath = resolvePath(runsDir, `run-${runId}-iter-${i}.log`);
     const metaPath = resolvePath(runsDir, `run-${runId}-iter-${i}.md`);
     const renderedPromptPath = resolvePath(
-      absPath(cwd, ".ralph/.tmp"),
+      absPath(cwd, ".poe-code-ralph/.tmp"),
       `prompt-build-${runId}-iter-${i}.md`
     );
 
@@ -362,15 +400,19 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     let overbakeAction: "continue" | "skip" | "abort" | null = null;
 
     try {
-      const result = await spawn(options.agent, { prompt, cwd, useStdin: true });
+      const result = await spawn(options.agent, {
+        prompt,
+        cwd,
+        useStdin: true
+      });
 
       const stdout = result.stdout ?? "";
-      const stderr = result.stderr ?? "";
-      stderrForErrorsLog = stderr;
+      const agentStderr = result.stderr ?? "";
+      stderrForErrorsLog = agentStderr;
 
       combinedOutput = [
         stdout ? `# stdout\n${stdout}` : "",
-        stderr ? `# stderr\n${stderr}` : ""
+        agentStderr ? `# stderr\n${agentStderr}` : ""
       ]
         .filter(Boolean)
         .join("\n");
@@ -378,7 +420,7 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
       if (result.exitCode !== 0) {
         status = "failure";
         combinedOutput = `${combinedOutput}${formatAgentSetupHint(options.agent)}`;
-        stderrForErrorsLog = `${stderr}${formatAgentSetupHint(options.agent)}`;
+        stderrForErrorsLog = `${agentStderr}${formatAgentSetupHint(options.agent)}`;
       } else if (detectCompletion(stdout)) {
         status = "success";
       } else {

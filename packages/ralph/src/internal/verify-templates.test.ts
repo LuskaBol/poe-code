@@ -26,10 +26,10 @@ describe("verifyBundledTemplates()", () => {
       "templates/PROMPT_build.md",
       "templates/references/GUARDRAILS.md",
       "templates/references/CONTEXT_ENGINEERING.md",
-      "templates/.ralph/progress.md",
-      "templates/.ralph/guardrails.md",
-      "templates/.ralph/errors.log",
-      "templates/.ralph/activity.log"
+      "templates/.poe-code-ralph/progress.md",
+      "templates/.poe-code-ralph/guardrails.md",
+      "templates/.poe-code-ralph/errors.log",
+      "templates/.poe-code-ralph/activity.log"
     ]);
 
     await expect(verifyBundledTemplates({ fs, packageRoot })).resolves.toBe(

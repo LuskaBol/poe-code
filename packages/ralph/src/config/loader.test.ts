@@ -18,10 +18,10 @@ describe("loadConfig", () => {
         "noCommit: true",
         "staleSeconds: 120",
         "planPath: .agents/tasks/plan.yaml",
-        "progressPath: .ralph/progress.md",
-        "guardrailsPath: .ralph/guardrails.md",
-        "errorsLogPath: .ralph/errors.log",
-        "activityLogPath: .ralph/activity.log",
+        "progressPath: .poe-code-ralph/progress.md",
+        "guardrailsPath: .poe-code-ralph/guardrails.md",
+        "errorsLogPath: .poe-code-ralph/errors.log",
+        "activityLogPath: .poe-code-ralph/activity.log",
         "unknownKey: ignored",
         ""
       ].join("\n")
@@ -29,10 +29,10 @@ describe("loadConfig", () => {
 
     await expect(loadConfig(cwd, { fs: fs as any })).resolves.toEqual({
       planPath: ".agents/tasks/plan.yaml",
-      progressPath: ".ralph/progress.md",
-      guardrailsPath: ".ralph/guardrails.md",
-      errorsLogPath: ".ralph/errors.log",
-      activityLogPath: ".ralph/activity.log",
+      progressPath: ".poe-code-ralph/progress.md",
+      guardrailsPath: ".poe-code-ralph/guardrails.md",
+      errorsLogPath: ".poe-code-ralph/errors.log",
+      activityLogPath: ".poe-code-ralph/activity.log",
       agent: "claude-code",
       maxIterations: 7,
       noCommit: true,

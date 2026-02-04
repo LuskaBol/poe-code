@@ -10,7 +10,7 @@ function createMemFs(files: Record<string, string> = {}): FileSystem {
 
 describe("writeRunMeta", () => {
   it("writes run metadata markdown matching Ralph output", async () => {
-    const path = "/.ralph/runs/run-20260201-221816-14669-iter-8.md";
+    const path = "/.poe-code-ralph/runs/run-20260201-221816-14669-iter-8.md";
     const fs = createMemFs();
 
     await writeRunMeta(
@@ -25,7 +25,7 @@ describe("writeRunMeta", () => {
         ended: "2026-02-01 23:40:00",
         duration: "501s",
         status: "success",
-        logPath: "/.ralph/runs/run-20260201-221816-14669-iter-8.log",
+        logPath: "/.poe-code-ralph/runs/run-20260201-221816-14669-iter-8.log",
         git: {
           headBefore: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           headAfter: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -40,11 +40,11 @@ describe("writeRunMeta", () => {
             }
           ],
           changedFiles: [
-            ".ralph/activity.log",
+            ".poe-code-ralph/activity.log",
             "packages/ralph/src/run/metadata.test.ts",
             "packages/ralph/src/run/metadata.ts"
           ],
-          dirtyFiles: [".ralph/activity.log"]
+          dirtyFiles: [".poe-code-ralph/activity.log"]
         }
       },
       { fs }
@@ -63,7 +63,7 @@ describe("writeRunMeta", () => {
       "- Ended: 2026-02-01 23:40:00",
       "- Duration: 501s",
       "- Status: success",
-      "- Log: /.ralph/runs/run-20260201-221816-14669-iter-8.log",
+      "- Log: /.poe-code-ralph/runs/run-20260201-221816-14669-iter-8.log",
       "",
       "## Git",
       "- Head (before): aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -74,12 +74,12 @@ describe("writeRunMeta", () => {
       "- ddddddd feat(ralph): add run metadata writer",
       "",
       "### Changed Files (commits)",
-      "- .ralph/activity.log",
+      "- .poe-code-ralph/activity.log",
       "- packages/ralph/src/run/metadata.test.ts",
       "- packages/ralph/src/run/metadata.ts",
       "",
       "### Uncommitted Changes",
-      "- .ralph/activity.log",
+      "- .poe-code-ralph/activity.log",
       ""
     ].join("\n");
 
@@ -87,7 +87,7 @@ describe("writeRunMeta", () => {
   });
 
   it("writes metadata even when git info is missing", async () => {
-    const path = "/.ralph/runs/run-20260201-221816-14669-iter-8.md";
+    const path = "/.poe-code-ralph/runs/run-20260201-221816-14669-iter-8.md";
     const fs = createMemFs();
 
     await writeRunMeta(

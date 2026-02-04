@@ -180,6 +180,27 @@ describe("spawn", () => {
     expect(child.__capturedStdin()).toBe("hi");
   });
 
+  it("forwards output to tee streams when provided", async () => {
+    vi.mocked(spawnChildProcess).mockReturnValue(
+      createMockChildProcess({ stdout: "agent output", stderr: "agent progress", exitCode: 0 })
+    );
+
+    let teeStdout = "";
+    let teeStderr = "";
+    const result = await spawn("codex", {
+      prompt: "hello",
+      tee: {
+        stdout: { write: (chunk: string) => { teeStdout += chunk; } },
+        stderr: { write: (chunk: string) => { teeStderr += chunk; } }
+      }
+    });
+
+    expect(result.stdout).toBe("agent output");
+    expect(result.stderr).toBe("agent progress");
+    expect(teeStdout).toBe("agent output");
+    expect(teeStderr).toBe("agent progress");
+  });
+
   it("falls back to prompt args when stdin is unsupported", async () => {
     const spawnMock = vi.mocked(spawnChildProcess).mockReturnValue(
       createMockChildProcess({ stdout: "ok\n", exitCode: 0 })

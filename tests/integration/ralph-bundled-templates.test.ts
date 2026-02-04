@@ -17,10 +17,10 @@ describe("US-017 bundled templates", () => {
       "PROMPT_build.md",
       path.join("references", "GUARDRAILS.md"),
       path.join("references", "CONTEXT_ENGINEERING.md"),
-      path.join(".ralph", "progress.md"),
-      path.join(".ralph", "guardrails.md"),
-      path.join(".ralph", "errors.log"),
-      path.join(".ralph", "activity.log")
+      path.join(".poe-code-ralph", "progress.md"),
+      path.join(".poe-code-ralph", "guardrails.md"),
+      path.join(".poe-code-ralph", "errors.log"),
+      path.join(".poe-code-ralph", "activity.log")
     ].map(filePath => path.join(templatesDir, filePath));
 
     expect(fs.existsSync(templatesDir)).toBe(true);

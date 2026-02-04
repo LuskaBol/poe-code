@@ -79,7 +79,7 @@ describe("createRalphSimulation", () => {
       const story = await getStory("US-001");
       expect(story?.status).toBe("open");
 
-      const errorsLog = await readFile(".ralph/errors.log");
+      const errorsLog = await readFile(".poe-code-ralph/errors.log");
       expect(errorsLog).toContain("something broke");
     });
   });
@@ -430,7 +430,7 @@ describe("createRalphSimulation", () => {
 
       const { result, readFile } = await sim.run();
       expect(result.iterations[0]?.status).toBe("failure");
-      expect(await readFile(".ralph/errors.log")).toContain("crash!");
+      expect(await readFile(".poe-code-ralph/errors.log")).toContain("crash!");
     });
   });
 
@@ -595,7 +595,7 @@ describe("createRalphSimulation", () => {
       expect(result.iterations[1]?.status).toBe("failure");
       expect(result.iterations[2]?.status).toBe("failure");
 
-      const errorsLog = await readFile(".ralph/errors.log");
+      const errorsLog = await readFile(".poe-code-ralph/errors.log");
       expect(errorsLog).toContain("unexpected turn 2");
     });
 

@@ -282,11 +282,11 @@ export function createRalphSimulation(options: SimulationOptions) {
   const runId = options.runId ?? "test-run-001";
 
   const planPath = "/.agents/tasks/plan.yaml";
-  const promptPath = "/.agents/ralph/PROMPT_build.md";
-  const progressPath = options.config?.progressPath ?? ".ralph/progress.md";
-  const guardrailsPath = options.config?.guardrailsPath ?? ".ralph/guardrails.md";
-  const errorsLogPath = options.config?.errorsLogPath ?? ".ralph/errors.log";
-  const activityLogPath = options.config?.activityLogPath ?? ".ralph/activity.log";
+  const promptPath = "/.agents/poe-code-ralph/PROMPT_build.md";
+  const progressPath = options.config?.progressPath ?? ".poe-code-ralph/progress.md";
+  const guardrailsPath = options.config?.guardrailsPath ?? ".poe-code-ralph/guardrails.md";
+  const errorsLogPath = options.config?.errorsLogPath ?? ".poe-code-ralph/errors.log";
+  const activityLogPath = options.config?.activityLogPath ?? ".poe-code-ralph/activity.log";
 
   const initialFiles: Record<string, string> = {
     [planPath]: stringify(prd),
@@ -441,10 +441,10 @@ export function createRalphSimulation(options: SimulationOptions) {
       };
 
       const readRunLog = (iteration: number) =>
-        readFile(`/.ralph/runs/run-${runId}-iter-${iteration}.log`);
+        readFile(`/.poe-code-ralph/runs/run-${runId}-iter-${iteration}.log`);
 
       const readRunMeta = (iteration: number) =>
-        readFile(`/.ralph/runs/run-${runId}-iter-${iteration}.md`);
+        readFile(`/.poe-code-ralph/runs/run-${runId}-iter-${iteration}.md`);
 
       return {
         result,
