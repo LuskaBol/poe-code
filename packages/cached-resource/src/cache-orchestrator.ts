@@ -1,6 +1,7 @@
 import type { CachedData, CacheConfig, FetchOptions } from "./types.js";
 import type { MemoryCache } from "./memory-cache.js";
 import type { DiskCacheFs } from "./disk-cache.js";
+import type { Revalidator } from "./background-revalidator.js";
 import { loadFromDisk, persist } from "./disk-cache.js";
 import { fetchFromApi } from "./api-fetch.js";
 
@@ -11,6 +12,7 @@ export interface CacheOrchestratorDeps<T> {
     input: string | URL | Request,
     init?: RequestInit,
   ) => Promise<Response>;
+  revalidator?: Revalidator;
 }
 
 export async function resolveData<T>(
@@ -30,6 +32,17 @@ export async function resolveData<T>(
     const diskCached = await loadFromDisk<T>(config, { fs: deps.fs });
     if (diskCached) {
       deps.memoryCache.set(config.cacheName, diskCached);
+
+      const isStale = Date.now() - diskCached.timestamp > config.freshTtl;
+      if (isStale && deps.revalidator && !offline && !preferOffline) {
+        deps.revalidator.trigger(config.cacheName, async () => {
+          const data = await fetchFromApi<T>(config, { fetch: deps.fetch });
+          const cached: CachedData<T> = { data, timestamp: Date.now() };
+          deps.memoryCache.set(config.cacheName, cached);
+          await persist(data, config, { fs: deps.fs });
+        });
+      }
+
       return diskCached;
     }
   }

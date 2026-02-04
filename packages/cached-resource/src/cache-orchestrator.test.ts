@@ -4,6 +4,7 @@ import { resolveData } from "./cache-orchestrator.js";
 import type { CacheConfig, CachedData } from "./types.js";
 import type { MemoryCache } from "./memory-cache.js";
 import type { DiskCacheFs } from "./disk-cache.js";
+import { createRevalidator } from "./background-revalidator.js";
 
 function createMockMemoryCache<T>(): MemoryCache<T> {
   const store = new Map<string, CachedData<T>>();
@@ -280,5 +281,170 @@ describe("resolveData", () => {
 
     expect(result.data).toEqual(bundledData);
     expect(result.timestamp).toBe(0);
+  });
+
+  describe("stale-while-revalidate", () => {
+    it("stale disk data triggers background revalidation", async () => {
+      const memoryCache = createMockMemoryCache<string[]>();
+      const revalidator = createRevalidator();
+      const staleTimestamp = Date.now() - defaultConfig.freshTtl - 1;
+      const staleCached: CachedData<string[]> = {
+        data: ["stale-a"],
+        timestamp: staleTimestamp,
+      };
+      const fs = createMemFs({
+        "/cache/test.json": JSON.stringify(staleCached),
+      });
+      const networkData = ["fresh-a"];
+      const mockFetch = createMockFetch(networkData);
+
+      const result = await resolveData(bundledData, defaultConfig, {
+        memoryCache,
+        fs,
+        fetch: mockFetch,
+        revalidator,
+      });
+
+      expect(result.data).toEqual(["stale-a"]);
+
+      await revalidator.waitForRevalidation();
+
+      expect(mockFetch).toHaveBeenCalled();
+      expect(memoryCache.get("test")?.data).toEqual(networkData);
+      const diskContent = await fs.readFile("/cache/test.json", "utf8");
+      expect(JSON.parse(diskContent).data).toEqual(networkData);
+    });
+
+    it("fresh disk data does not trigger background revalidation", async () => {
+      const memoryCache = createMockMemoryCache<string[]>();
+      const revalidator = createRevalidator();
+      const freshCached: CachedData<string[]> = {
+        data: ["fresh-a"],
+        timestamp: Date.now(),
+      };
+      const fs = createMemFs({
+        "/cache/test.json": JSON.stringify(freshCached),
+      });
+      const mockFetch = createMockFetch(["should-not-reach"]);
+
+      await resolveData(bundledData, defaultConfig, {
+        memoryCache,
+        fs,
+        fetch: mockFetch,
+        revalidator,
+      });
+
+      await revalidator.waitForRevalidation();
+
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("concurrent revalidation requests are deduplicated", async () => {
+      const memoryCache = createMockMemoryCache<string[]>();
+      const revalidator = createRevalidator();
+      const staleTimestamp = Date.now() - defaultConfig.freshTtl - 1;
+      const staleCached: CachedData<string[]> = {
+        data: ["stale-a"],
+        timestamp: staleTimestamp,
+      };
+      const fs = createMemFs({
+        "/cache/test.json": JSON.stringify(staleCached),
+      });
+      const mockFetch = createMockFetch(["fresh-a"]);
+
+      await resolveData(bundledData, defaultConfig, {
+        memoryCache,
+        fs,
+        fetch: mockFetch,
+        revalidator,
+      });
+
+      memoryCache.clear();
+      await resolveData(bundledData, defaultConfig, {
+        memoryCache,
+        fs,
+        fetch: mockFetch,
+        revalidator,
+      });
+
+      await revalidator.waitForRevalidation();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("background fetch failures are silent", async () => {
+      const memoryCache = createMockMemoryCache<string[]>();
+      const revalidator = createRevalidator();
+      const staleTimestamp = Date.now() - defaultConfig.freshTtl - 1;
+      const staleCached: CachedData<string[]> = {
+        data: ["stale-a"],
+        timestamp: staleTimestamp,
+      };
+      const fs = createMemFs({
+        "/cache/test.json": JSON.stringify(staleCached),
+      });
+      const mockFetch = createFailingFetch();
+
+      const result = await resolveData(bundledData, defaultConfig, {
+        memoryCache,
+        fs,
+        fetch: mockFetch,
+        revalidator,
+      });
+
+      await revalidator.waitForRevalidation();
+
+      expect(result.data).toEqual(["stale-a"]);
+    });
+
+    it("does not trigger revalidation in offline mode", async () => {
+      const memoryCache = createMockMemoryCache<string[]>();
+      const revalidator = createRevalidator();
+      const staleTimestamp = Date.now() - defaultConfig.freshTtl - 1;
+      const staleCached: CachedData<string[]> = {
+        data: ["stale-a"],
+        timestamp: staleTimestamp,
+      };
+      const fs = createMemFs({
+        "/cache/test.json": JSON.stringify(staleCached),
+      });
+      const mockFetch = createMockFetch(["should-not-reach"]);
+
+      await resolveData(
+        bundledData,
+        defaultConfig,
+        { memoryCache, fs, fetch: mockFetch, revalidator },
+        { offline: true },
+      );
+
+      await revalidator.waitForRevalidation();
+
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("does not trigger revalidation in preferOffline mode", async () => {
+      const memoryCache = createMockMemoryCache<string[]>();
+      const revalidator = createRevalidator();
+      const staleTimestamp = Date.now() - defaultConfig.freshTtl - 1;
+      const staleCached: CachedData<string[]> = {
+        data: ["stale-a"],
+        timestamp: staleTimestamp,
+      };
+      const fs = createMemFs({
+        "/cache/test.json": JSON.stringify(staleCached),
+      });
+      const mockFetch = createMockFetch(["should-not-reach"]);
+
+      await resolveData(
+        bundledData,
+        defaultConfig,
+        { memoryCache, fs, fetch: mockFetch, revalidator },
+        { preferOffline: true },
+      );
+
+      await revalidator.waitForRevalidation();
+
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
   });
 });

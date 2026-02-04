@@ -6,3 +6,5 @@ export type { MemoryCache, MemoryCacheOptions } from "./memory-cache.js";
 export { fetchFromApi } from "./api-fetch.js";
 export { resolveData } from "./cache-orchestrator.js";
 export type { CacheOrchestratorDeps } from "./cache-orchestrator.js";
+export { createRevalidator } from "./background-revalidator.js";
+export type { Revalidator } from "./background-revalidator.js";
