@@ -81,6 +81,24 @@ npx poe-code@latest install kimi
 - `--dry-run` – show every mutation without touching disk.
 - `--yes` – accept defaults for prompts.
 
+## Usage & Billing
+
+Check your compute points balance and review usage history.
+
+```bash
+# Show current balance
+poe-code usage
+
+# Show usage history (paginated, 20 entries per page)
+poe-code usage list
+
+# Auto-load multiple pages
+poe-code usage list --pages 5
+
+# Filter by model name
+poe-code usage list --filter claude
+```
+
 ## Poe MCP Server
 
 Give any agent access to all Poe models including latest image, video, and audio models.

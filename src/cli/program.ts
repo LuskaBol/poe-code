@@ -92,6 +92,16 @@ function formatHelpText(input: {
         name: "skill unconfigure",
         args: "[agent]",
         description: "Remove agent skills configuration"
+      },
+      {
+        name: "usage",
+        args: "",
+        description: "Display current compute points balance"
+      },
+      {
+        name: "usage list",
+        args: "",
+        description: "Display usage history with pagination"
       }
     ];
   const nameWidth = Math.max(0, ...commandRows.map((row) => row.name.length));
