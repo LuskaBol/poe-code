@@ -70,5 +70,8 @@ export const openCodeSpawnConfig: CliSpawnConfig = {
   promptFlag: "run",
   modelFlag: "--model",
   defaultArgs: ["--format", "json"],
-  resumeCommand: (threadId, cwd) => [cwd, "--session", threadId]
+  interactive: {
+    defaultArgs: [],
+    promptFlag: "--prompt"
+  }
 };

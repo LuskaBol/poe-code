@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("@poe-code/agent-spawn", () => ({
   spawn: vi.fn(),
   spawnStreaming: vi.fn(),
+  spawnInteractive: vi.fn(),
   getSpawnConfig: vi.fn()
 }));
 
@@ -15,7 +16,7 @@ vi.mock("./container.js", () => ({
 }));
 
 import { spawn } from "./spawn.js";
-import { getSpawnConfig, spawn as agentSpawn, spawnStreaming } from "@poe-code/agent-spawn";
+import { getSpawnConfig, spawn as agentSpawn, spawnStreaming, spawnInteractive } from "@poe-code/agent-spawn";
 import { spawnCore } from "./spawn-core.js";
 import { createSdkContainer } from "./container.js";
 
@@ -24,6 +25,7 @@ const originalEnv = { ...process.env };
 beforeEach(() => {
   process.env = { ...originalEnv, POE_API_KEY: "test-key" };
   vi.mocked(spawnStreaming).mockReset();
+  vi.mocked(spawnInteractive).mockReset();
   vi.mocked(agentSpawn).mockReset();
   vi.mocked(getSpawnConfig).mockReset();
   vi.mocked(spawnCore).mockReset();
@@ -132,5 +134,103 @@ describe("SDK spawn()", () => {
     expect(spawnStreaming).not.toHaveBeenCalled();
     expect(agentSpawn).not.toHaveBeenCalled();
     expect(spawnCore).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls spawnInteractive and returns empty events when interactive is true", async () => {
+    vi.mocked(spawnInteractive).mockResolvedValue({
+      stdout: "",
+      stderr: "",
+      exitCode: 0
+    });
+
+    const { events, result } = spawn("claude-code", "test prompt", { interactive: true });
+
+    const received: unknown[] = [];
+    for await (const e of events) {
+      received.push(e);
+    }
+
+    expect(received).toEqual([]);
+    await expect(result).resolves.toEqual({
+      stdout: "",
+      stderr: "",
+      exitCode: 0
+    });
+
+    expect(spawnInteractive).toHaveBeenCalledTimes(1);
+    expect(spawnInteractive).toHaveBeenCalledWith("claude-code", {
+      prompt: "test prompt",
+      cwd: undefined,
+      model: undefined,
+      args: undefined
+    });
+    expect(spawnStreaming).not.toHaveBeenCalled();
+    expect(agentSpawn).not.toHaveBeenCalled();
+    expect(spawnCore).not.toHaveBeenCalled();
+  });
+
+  it("passes options through to spawnInteractive in interactive mode", async () => {
+    vi.mocked(spawnInteractive).mockResolvedValue({
+      stdout: "",
+      stderr: "",
+      exitCode: 42
+    });
+
+    const { result } = spawn("codex", {
+      prompt: "fix bug",
+      interactive: true,
+      cwd: "/tmp/project",
+      model: "gpt-4",
+      args: ["--extra"]
+    });
+
+    await expect(result).resolves.toEqual({
+      stdout: "",
+      stderr: "",
+      exitCode: 42
+    });
+
+    expect(spawnInteractive).toHaveBeenCalledWith("codex", {
+      prompt: "fix bug",
+      cwd: "/tmp/project",
+      model: "gpt-4",
+      args: ["--extra"]
+    });
+  });
+
+  it("uses normal spawn flow when interactive is false", async () => {
+    vi.mocked(getSpawnConfig).mockReturnValue({
+      kind: "cli",
+      agentId: "codex",
+      adapter: "codex"
+    });
+
+    vi.mocked(spawnStreaming).mockImplementation(() => ({
+      events: (async function* () {})(),
+      done: Promise.resolve({ stdout: "", stderr: "", exitCode: 0 })
+    }));
+
+    const { result } = spawn("codex", "test prompt", { interactive: false });
+
+    await result;
+
+    expect(spawnInteractive).not.toHaveBeenCalled();
+    expect(spawnStreaming).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates errors from spawnInteractive", async () => {
+    vi.mocked(spawnInteractive).mockRejectedValue(
+      new Error('Agent "unknown" does not support interactive mode.')
+    );
+
+    const { events, result } = spawn("unknown", "test prompt", { interactive: true });
+
+    const received: unknown[] = [];
+    for await (const e of events) {
+      received.push(e);
+    }
+
+    expect(received).toEqual([]);
+    await expect(result).rejects.toThrow("does not support interactive mode");
   });
 });

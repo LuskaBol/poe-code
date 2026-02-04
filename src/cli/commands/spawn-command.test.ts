@@ -17,18 +17,16 @@ vi.mock("../../sdk/spawn.js", () => ({
   spawn: vi.fn()
 }));
 
-vi.mock("@poe-code/agent-spawn", async () => {
-  const actual = await vi.importActual<
-    typeof import("@poe-code/agent-spawn")
-  >("@poe-code/agent-spawn");
+vi.mock("@poe-code/agent-spawn", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@poe-code/agent-spawn")>();
   return {
     ...actual,
-    getSpawnConfig: vi.fn(actual.getSpawnConfig)
+    spawnInteractive: vi.fn()
   };
 });
 
 import { spawn as sdkSpawn } from "../../sdk/spawn.js";
-import { getSpawnConfig } from "@poe-code/agent-spawn";
+import { spawnInteractive } from "@poe-code/agent-spawn";
 
 const cwd = "/repo";
 const homeDir = "/home/test";
@@ -597,167 +595,204 @@ describe("spawn command", () => {
     expect(plainLog).not.toContain("Resume:");
   });
 
-  it("prints claude-code resume command with --resume flag", async () => {
-    vi.mocked(sdkSpawn).mockImplementation(() => ({
-      events: emptyAsyncIterable(),
-      result: Promise.resolve({
+  describe("--interactive flag", () => {
+    it("calls spawnInteractive when --interactive is set", async () => {
+      vi.mocked(spawnInteractive).mockResolvedValue({
         stdout: "",
         stderr: "",
-        exitCode: 0,
-        threadId: "thread_abc123"
-      })
-    }));
+        exitCode: 0
+      });
 
-    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
-
-    try {
-      const logs: string[] = [];
       const { runner } = createCommandRunnerStub();
       const program = createProgram({
         fs,
         prompts: vi.fn().mockResolvedValue({}),
         env: { cwd, homeDir },
         commandRunner: runner,
-        logger: (message) => logs.push(message)
+        logger: () => {}
       });
 
       await program.parseAsync([
         "node",
         "cli",
         "spawn",
+        "--interactive",
         "claude-code",
         "hello"
       ]);
 
-      const plainLog = stripAnsi(logs.join("\n"));
-      expect(plainLog).toContain(
-        "Resume: cd /projects/demo && claude --resume thread_abc123"
-      );
-    } finally {
-      processCwdSpy.mockRestore();
-    }
-  });
+      expect(spawnInteractive).toHaveBeenCalledWith("claude-code", {
+        prompt: "hello",
+        args: [],
+        model: undefined,
+        cwd: undefined
+      });
+      expect(sdkSpawn).not.toHaveBeenCalled();
+    });
 
-  it("prints opencode resume command with positional cwd", async () => {
-    vi.mocked(sdkSpawn).mockImplementation(() => ({
-      events: emptyAsyncIterable(),
-      result: Promise.resolve({
+    it("calls spawnInteractive when -i shorthand is used", async () => {
+      vi.mocked(spawnInteractive).mockResolvedValue({
         stdout: "",
         stderr: "",
-        exitCode: 0,
-        threadId: "thread_abc123"
-      })
-    }));
+        exitCode: 0
+      });
 
-    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
-
-    try {
-      const logs: string[] = [];
       const { runner } = createCommandRunnerStub();
       const program = createProgram({
         fs,
         prompts: vi.fn().mockResolvedValue({}),
         env: { cwd, homeDir },
         commandRunner: runner,
-        logger: (message) => logs.push(message)
+        logger: () => {}
       });
 
       await program.parseAsync([
         "node",
         "cli",
         "spawn",
-        "opencode",
+        "-i",
+        "claude-code",
         "hello"
       ]);
 
-      const plainLog = stripAnsi(logs.join("\n"));
-      expect(plainLog).toContain(
-        "Resume: opencode /projects/demo --session thread_abc123"
-      );
-    } finally {
-      processCwdSpy.mockRestore();
-    }
-  });
+      expect(spawnInteractive).toHaveBeenCalled();
+      expect(sdkSpawn).not.toHaveBeenCalled();
+    });
 
-  it("prints kimi resume command with --session and --work-dir", async () => {
-    vi.mocked(sdkSpawn).mockImplementation(() => ({
-      events: emptyAsyncIterable(),
-      result: Promise.resolve({
+    it("propagates non-zero exit code from interactive spawn", async () => {
+      vi.mocked(spawnInteractive).mockResolvedValue({
         stdout: "",
         stderr: "",
-        exitCode: 0,
-        threadId: "thread_abc123"
-      })
-    }));
+        exitCode: 42
+      });
 
-    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
-
-    try {
-      const logs: string[] = [];
       const { runner } = createCommandRunnerStub();
       const program = createProgram({
         fs,
         prompts: vi.fn().mockResolvedValue({}),
         env: { cwd, homeDir },
         commandRunner: runner,
-        logger: (message) => logs.push(message)
+        logger: () => {}
+      });
+
+      const savedExitCode = process.exitCode;
+      try {
+        await program.parseAsync([
+          "node",
+          "cli",
+          "spawn",
+          "--interactive",
+          "claude-code",
+          "hello"
+        ]);
+        expect(process.exitCode).toBe(42);
+      } finally {
+        process.exitCode = savedExitCode;
+      }
+    });
+
+    it("shows error when agent does not support interactive mode", async () => {
+      vi.mocked(spawnInteractive).mockRejectedValue(
+        new Error('Agent "codex" does not support interactive mode.')
+      );
+
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: () => {}
+      });
+
+      await expect(
+        program.parseAsync([
+          "node",
+          "cli",
+          "spawn",
+          "--interactive",
+          "codex",
+          "hello"
+        ])
+      ).rejects.toThrow("does not support interactive mode");
+    });
+
+    it("does not render ACP events in interactive mode", async () => {
+      vi.mocked(spawnInteractive).mockResolvedValue({
+        stdout: "",
+        stderr: "",
+        exitCode: 0
+      });
+
+      const chunks: string[] = [];
+      const spy = vi
+        .spyOn(process.stdout, "write")
+        .mockImplementation(((chunk: unknown) => {
+          chunks.push(String(chunk));
+          return true;
+        }) as unknown as typeof process.stdout.write);
+
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: () => {}
+      });
+
+      try {
+        await program.parseAsync([
+          "node",
+          "cli",
+          "spawn",
+          "--interactive",
+          "claude-code",
+          "hello"
+        ]);
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(sdkSpawn).not.toHaveBeenCalled();
+      expect(chunks).toHaveLength(0);
+    });
+
+    it("passes model and cwd to spawnInteractive", async () => {
+      vi.mocked(spawnInteractive).mockResolvedValue({
+        stdout: "",
+        stderr: "",
+        exitCode: 0
+      });
+
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: () => {}
       });
 
       await program.parseAsync([
         "node",
         "cli",
         "spawn",
-        "kimi",
+        "--interactive",
+        "--model",
+        "gpt-4",
+        "-C",
+        "/projects/demo",
+        "claude-code",
         "hello"
       ]);
 
-      const plainLog = stripAnsi(logs.join("\n"));
-      expect(plainLog).toContain(
-        "Resume: kimi --session thread_abc123 --work-dir /projects/demo"
-      );
-    } finally {
-      processCwdSpy.mockRestore();
-    }
-  });
-
-  it("does not print resume when config has no resumeCommand", async () => {
-    vi.mocked(sdkSpawn).mockImplementation(() => ({
-      events: emptyAsyncIterable(),
-      result: Promise.resolve({
-        stdout: "",
-        stderr: "",
-        exitCode: 0,
-        threadId: "thread_abc123"
-      })
-    }));
-
-    vi.mocked(getSpawnConfig).mockReturnValueOnce({
-      kind: "cli",
-      agentId: "codex",
-      adapter: "codex",
-      promptFlag: "exec",
-      defaultArgs: []
+      expect(spawnInteractive).toHaveBeenCalledWith("claude-code", {
+        prompt: "hello",
+        args: [],
+        model: "gpt-4",
+        cwd: "/projects/demo"
+      });
     });
-
-    const logs: string[] = [];
-    const { runner } = createCommandRunnerStub();
-    const program = createProgram({
-      fs,
-      prompts: vi.fn().mockResolvedValue({}),
-      env: { cwd, homeDir },
-      commandRunner: runner,
-      logger: (message) => logs.push(message)
-    });
-
-    await program.parseAsync([
-      "node",
-      "cli",
-      "spawn",
-      "codex",
-      "hello"
-    ]);
-
-    const plainLog = stripAnsi(logs.join("\n"));
-    expect(plainLog).not.toContain("Resume:");
   });
 });

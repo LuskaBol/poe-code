@@ -6,6 +6,7 @@ export interface SpawnOptions {
   model?: string;
   args?: string[];
   useStdin?: boolean;
+  interactive?: boolean;
   tee?: {
     stdout?: { write(chunk: string): void };
     stderr?: { write(chunk: string): void };
@@ -43,6 +44,11 @@ export interface StdinMode {
   extraArgs: string[];
 }
 
+export interface InteractiveSpawnConfig {
+  defaultArgs: string[];
+  promptFlag?: string;
+}
+
 export interface CliSpawnConfig {
   kind: "cli";
   agentId: string;
@@ -51,7 +57,7 @@ export interface CliSpawnConfig {
   defaultArgs: string[];
   stdinMode?: StdinMode;
   modelFlag?: string;
-  resumeCommand?: (threadId: string, cwd: string) => string[];
+  interactive?: InteractiveSpawnConfig;
 }
 
 export interface FileSpawnConfig {

@@ -13,5 +13,8 @@ export const kimiSpawnConfig: CliSpawnConfig = {
     omitPrompt: true,
     extraArgs: ["--input-format", "stream-json"]
   },
-  resumeCommand: (threadId, cwd) => ["--session", threadId, "--work-dir", cwd]
+  interactive: {
+    defaultArgs: [],
+    promptFlag: "-p"
+  }
 };

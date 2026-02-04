@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Command } from "commander";
 import type { CliContainer } from "../container.js";
-import { renderAcpStream, getSpawnConfig } from "@poe-code/agent-spawn";
+import { renderAcpStream, spawnInteractive } from "@poe-code/agent-spawn";
 import { allAgents, resolveAgentId } from "@poe-code/agent-defs";
 import { text } from "@poe-code/design-system";
 import {
@@ -53,6 +53,7 @@ export function registerSpawnCommand(
     .option("--model <model>", "Model identifier override passed to the agent CLI")
     .option("-C, --cwd <path>", "Working directory for the agent CLI")
     .option("--stdin", "Read the prompt from stdin")
+    .option("-i, --interactive", "Launch the agent in interactive TUI mode")
     .argument(
       "<agent>",
       serviceDescription
@@ -69,7 +70,7 @@ export function registerSpawnCommand(
       agentArgs: string[] = []
     ) {
       const flags = resolveCommandFlags(program);
-      const commandOptions = this.opts<{ model?: string; cwd?: string; stdin?: boolean }>();
+      const commandOptions = this.opts<{ model?: string; cwd?: string; stdin?: boolean; interactive?: boolean }>();
       const cwdOverride = resolveSpawnWorkingDirectory(
         container.env.cwd,
         commandOptions.cwd
@@ -112,6 +113,18 @@ export function registerSpawnCommand(
         cwd: cwdOverride,
         useStdin: shouldReadFromStdin
       };
+
+      if (commandOptions.interactive) {
+        const adapter = resolveServiceAdapter(container, service);
+        const result = await spawnInteractive(adapter.name, {
+          prompt: spawnOptions.prompt,
+          args: spawnOptions.args,
+          model: spawnOptions.model,
+          cwd: spawnOptions.cwd
+        });
+        process.exitCode = result.exitCode;
+        return;
+      }
 
       // Check for custom handlers first
       const directHandler = options.handlers?.[service];

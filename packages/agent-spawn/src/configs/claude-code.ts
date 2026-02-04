@@ -20,5 +20,7 @@ export const claudeCodeSpawnConfig: CliSpawnConfig = {
     omitPrompt: true,
     extraArgs: ["--input-format", "text"]
   },
-  resumeCommand: (threadId) => ["--resume", threadId]
+  interactive: {
+    defaultArgs: ["--allowedTools", "Bash,Read", "--permission-mode", "acceptEdits"]
+  }
 };
