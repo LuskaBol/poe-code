@@ -207,7 +207,11 @@ export function registerSpawnCommand(
             if (binaryName) {
               const resumeCwd = path.resolve(spawnOptions.cwd ?? process.cwd());
               const args = spawnConfig.resumeCommand(final.threadId, resumeCwd);
-              const resumeCommand = [binaryName, ...args.map(shlexQuote)].join(" ");
+              const agentCommand = [binaryName, ...args.map(shlexQuote)].join(" ");
+              const needsCdPrefix = !args.includes(resumeCwd);
+              const resumeCommand = needsCdPrefix
+                ? `cd ${shlexQuote(resumeCwd)} && ${agentCommand}`
+                : agentCommand;
               resources.logger.info(text.muted(`\nResume: ${resumeCommand}`));
             }
           }
