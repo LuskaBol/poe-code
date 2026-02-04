@@ -10,6 +10,8 @@ export interface SpawnOptions {
   model?: string;
   /** Additional arguments forwarded to the CLI */
   args?: string[];
+  /** Launch the agent in interactive (TUI) mode with inherited stdio */
+  interactive?: boolean;
 }
 
 /**

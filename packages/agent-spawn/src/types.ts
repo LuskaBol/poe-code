@@ -6,6 +6,7 @@ export interface SpawnOptions {
   model?: string;
   args?: string[];
   useStdin?: boolean;
+  interactive?: boolean;
   tee?: {
     stdout?: { write(chunk: string): void };
     stderr?: { write(chunk: string): void };
