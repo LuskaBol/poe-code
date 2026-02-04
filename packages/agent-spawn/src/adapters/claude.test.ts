@@ -49,7 +49,7 @@ describe("adaptClaude", () => {
         event: "tool_start",
         id: "tu_1",
         kind: "exec",
-        title: "Bash",
+        title: "ls -la",
         input: { command: "ls -la" }
       },
       {
@@ -62,7 +62,7 @@ describe("adaptClaude", () => {
         event: "tool_start",
         id: "tu_2",
         kind: "edit",
-        title: "Edit",
+        title: "src/config.ts",
         input: {
           file_path: "src/config.ts",
           old_string: "port: 3000",
@@ -103,20 +103,21 @@ describe("adaptClaude", () => {
   });
 
   it.each([
-    ["Read", "read"],
-    ["Write", "edit"],
-    ["Edit", "edit"],
-    ["Bash", "exec"],
-    ["Glob", "search"],
-    ["Grep", "search"],
-    ["Task", "think"]
-  ] as const)("maps tool_use %s to kind: %s", async (name, kind) => {
+    ["Read", "read", { file_path: "/src/app.ts" }, "/src/app.ts"],
+    ["Write", "edit", { file_path: "/src/app.ts", content: "x" }, "/src/app.ts"],
+    ["Edit", "edit", { file_path: "/src/app.ts", old_string: "a", new_string: "b" }, "/src/app.ts"],
+    ["NotebookEdit", "edit", { notebook_path: "/nb.ipynb", new_source: "x" }, "/nb.ipynb"],
+    ["Bash", "exec", { command: "ls -la" }, "ls -la"],
+    ["Glob", "search", { pattern: "**/*.ts" }, "**/*.ts"],
+    ["Grep", "search", { pattern: "TODO" }, "TODO"],
+    ["Task", "think", { description: "explore codebase", prompt: "find files" }, "explore codebase"]
+  ] as const)("maps tool_use %s to kind: %s with descriptive title", async (name, kind, input, expectedTitle) => {
     const events = await collect(
       adaptClaude(
         fromArray([
           JSON.stringify({
             type: "assistant",
-            message: { content: [{ type: "tool_use", id: "tu_1", name, input: { a: 1 } }] }
+            message: { content: [{ type: "tool_use", id: "tu_1", name, input }] }
           })
         ])
       )
@@ -128,13 +129,37 @@ describe("adaptClaude", () => {
         event: "tool_start",
         id: "tu_1",
         kind,
-        title: name,
-        input: { a: 1 }
+        title: expectedTitle,
+        input
       }
     ]);
   });
 
-  it("maps unknown tool name to kind: other", async () => {
+  it("falls back to tool name when input has no extractable title", async () => {
+    const events = await collect(
+      adaptClaude(
+        fromArray([
+          JSON.stringify({
+            type: "assistant",
+            message: { content: [{ type: "tool_use", id: "tu_1", name: "Read", input: {} }] }
+          })
+        ])
+      )
+    );
+
+    expect(events).toEqual([
+      { event: "session_start", threadId: undefined },
+      {
+        event: "tool_start",
+        id: "tu_1",
+        kind: "read",
+        title: "Read",
+        input: {}
+      }
+    ]);
+  });
+
+  it("maps unknown tool name to kind: other and keeps tool name as title", async () => {
     const updates = await collect(
       adaptClaude(
         fromArray([
@@ -174,7 +199,7 @@ describe("adaptClaude", () => {
         event: "tool_start",
         id: "tu_1",
         kind: "exec",
-        title: "Bash",
+        title: "ls",
         input: { command: "ls" }
       },
       {
