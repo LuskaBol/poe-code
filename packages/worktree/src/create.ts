@@ -1,0 +1,45 @@
+import { join } from "node:path";
+import { addWorktreeEntry } from "./registry.js";
+import type { Worktree, WorktreeDeps } from "./types.js";
+
+export type CreateWorktreeOptions = {
+  cwd: string;
+  name: string;
+  baseBranch: string;
+  source: string;
+  agent: string;
+  storyId?: string;
+  planPath?: string;
+  prompt?: string;
+  deps: WorktreeDeps;
+};
+
+export async function createWorktree(
+  opts: CreateWorktreeOptions
+): Promise<Worktree> {
+  const branch = `poe-code/${opts.name}`;
+  const worktreePath = join(opts.cwd, ".poe-code-worktrees", opts.name);
+
+  await opts.deps.exec(
+    `git worktree add -b ${branch} ${worktreePath} ${opts.baseBranch}`,
+    { cwd: opts.cwd }
+  );
+
+  const entry: Worktree = {
+    name: opts.name,
+    path: worktreePath,
+    branch,
+    baseBranch: opts.baseBranch,
+    createdAt: new Date().toISOString(),
+    source: opts.source,
+    agent: opts.agent,
+    status: "active",
+    ...(opts.storyId !== undefined && { storyId: opts.storyId }),
+    ...(opts.planPath !== undefined && { planPath: opts.planPath }),
+    ...(opts.prompt !== undefined && { prompt: opts.prompt })
+  };
+
+  await addWorktreeEntry(opts.cwd, entry, opts.deps.fs);
+
+  return entry;
+}
