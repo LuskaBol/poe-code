@@ -51,6 +51,7 @@ export interface CliSpawnConfig {
   defaultArgs: string[];
   stdinMode?: StdinMode;
   modelFlag?: string;
+  resumeCommand?: (threadId: string, cwd: string) => string[];
 }
 
 export interface FileSpawnConfig {

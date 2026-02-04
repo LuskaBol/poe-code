@@ -19,5 +19,6 @@ export const claudeCodeSpawnConfig: CliSpawnConfig = {
   stdinMode: {
     omitPrompt: true,
     extraArgs: ["--input-format", "text"]
-  }
+  },
+  resumeCommand: (threadId) => ["--resume", threadId]
 };

@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Command } from "commander";
 import type { CliContainer } from "../container.js";
-import { renderAcpStream } from "@poe-code/agent-spawn";
+import { renderAcpStream, getSpawnConfig } from "@poe-code/agent-spawn";
 import { allAgents, resolveAgentId } from "@poe-code/agent-defs";
 import { text } from "@poe-code/design-system";
 import {
@@ -199,14 +199,17 @@ export function registerSpawnCommand(
         }
 
         if (final.threadId) {
-          const resolvedId = resolveAgentId(canonicalService) ?? canonicalService;
-          const agentDefinition = allAgents.find((agent) => agent.id === resolvedId);
-          const binaryName = agentDefinition?.binaryName;
-          if (binaryName) {
-            const resumeCwd = spawnOptions.cwd ?? process.cwd();
-            const resumeCommand =
-              `${binaryName} resume -C ${shlexQuote(resumeCwd)} ${final.threadId}`;
-            resources.logger.info(text.muted(`\nResume: ${resumeCommand}`));
+          const spawnConfig = getSpawnConfig(canonicalService);
+          if (spawnConfig?.kind === "cli" && spawnConfig.resumeCommand) {
+            const resolvedId = resolveAgentId(canonicalService) ?? canonicalService;
+            const agentDefinition = allAgents.find((agent) => agent.id === resolvedId);
+            const binaryName = agentDefinition?.binaryName;
+            if (binaryName) {
+              const resumeCwd = path.resolve(spawnOptions.cwd ?? process.cwd());
+              const args = spawnConfig.resumeCommand(final.threadId, resumeCwd);
+              const resumeCommand = [binaryName, ...args.map(shlexQuote)].join(" ");
+              resources.logger.info(text.muted(`\nResume: ${resumeCommand}`));
+            }
           }
         }
       } finally {
