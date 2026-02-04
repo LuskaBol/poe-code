@@ -4,7 +4,7 @@ import { createExecutionResources, resolveCommandFlags } from "./shared.js";
 import { loadCredentials } from "../../services/credentials.js";
 import { AuthenticationError, ApiError } from "../errors.js";
 import { Table } from "console-table-printer";
-import { confirm, isCancel, getTheme } from "@poe-code/design-system";
+import { confirm, isCancel, getTheme, widths } from "@poe-code/design-system";
 
 export function registerUsageCommand(
   program: Command,
@@ -202,6 +202,11 @@ export function registerUsageCommand(
 
         const theme = getTheme();
 
+        const dateWidth = 16;
+        const costWidth = 10;
+        const tableChrome = 10;
+        const modelMaxWidth = widths.maxLine - dateWidth - costWidth - tableChrome;
+
         const table = new Table({
           style: {
             headerTop: {
@@ -231,9 +236,9 @@ export function registerUsageCommand(
             }
           },
           columns: [
-            { name: "Date", title: theme.header("Date"), alignment: "left" },
-            { name: "Model", title: theme.header("Model"), alignment: "left" },
-            { name: "Cost", title: theme.header("Cost"), alignment: "right" }
+            { name: "Date", title: theme.header("Date"), alignment: "left", maxLen: dateWidth },
+            { name: "Model", title: theme.header("Model"), alignment: "left", maxLen: modelMaxWidth },
+            { name: "Cost", title: theme.header("Cost"), alignment: "right", maxLen: costWidth }
           ]
         });
 
@@ -246,9 +251,13 @@ export function registerUsageCommand(
           const minutes = String(date.getUTCMinutes()).padStart(2, "0");
           const formatted = `${year}-${month}-${day} ${hours}:${minutes}`;
 
+          const modelName = entry.model.length > modelMaxWidth
+            ? entry.model.slice(0, modelMaxWidth - 1) + "\u2026"
+            : entry.model;
+
           table.addRow({
             Date: theme.muted(formatted),
-            Model: theme.accent(entry.model),
+            Model: theme.accent(modelName),
             Cost:
               entry.cost < 0
                 ? theme.error(String(entry.cost))

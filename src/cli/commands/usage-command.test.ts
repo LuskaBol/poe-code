@@ -640,6 +640,34 @@ describe("usage list table styling", () => {
     expect(successFn).toHaveBeenCalledWith("10");
   });
 
+  it("truncates long model names with '…' suffix", async () => {
+    fs = createCredentialsVolume("test-key");
+    const longModelName = "A".repeat(60);
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: longModelName, cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    const output = logs.join("\n");
+    expect(output).not.toContain(longModelName);
+    expect(output).toContain("…");
+  });
+
   it("styles table borders with theme.muted", async () => {
     const mutedFn = vi.fn((t: string) => t);
     getThemeMock.mockReturnValue({ ...createIdentityTheme(), muted: mutedFn });
