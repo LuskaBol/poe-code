@@ -4,6 +4,7 @@ import { createSdkContainer } from "./container.js";
 import {
   getSpawnConfig,
   spawn as spawnNonStreaming,
+  spawnInteractive,
   spawnStreaming,
   type AcpEvent
 } from "@poe-code/agent-spawn";
@@ -87,6 +88,21 @@ export function spawn(
   const result = (async (): Promise<SpawnResult> => {
     try {
       await getPoeApiKey();
+
+      if (options.interactive) {
+        resolveEventsOnce(emptyEvents);
+        const interactiveResult = await spawnInteractive(service, {
+          prompt: options.prompt,
+          cwd: options.cwd,
+          model: options.model,
+          args: options.args
+        });
+        return {
+          stdout: interactiveResult.stdout,
+          stderr: interactiveResult.stderr,
+          exitCode: interactiveResult.exitCode
+        };
+      }
 
       const spawnConfig = getSpawnConfig(service);
       const supportsStreaming =
