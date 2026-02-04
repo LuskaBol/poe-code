@@ -491,6 +491,7 @@ export function registerRalphCommand(
 
         await ralphBuild({
           planPath,
+          progressPath: config.progressPath,
           guardrailsPath: config.guardrailsPath,
           errorsLogPath: config.errorsLogPath,
           activityLogPath: config.activityLogPath,

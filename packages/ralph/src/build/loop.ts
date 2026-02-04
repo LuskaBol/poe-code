@@ -119,6 +119,7 @@ export type WorktreeOptions = {
 
 export type BuildLoopOptions = {
   planPath: string;
+  progressPath?: string;
   guardrailsPath?: string;
   errorsLogPath?: string;
   activityLogPath?: string;
@@ -412,6 +413,7 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     planPath = destPlanPath;
   }
 
+  const progressPath = absPath(cwd, options.progressPath ?? ".poe-code-ralph/progress.md");
   const guardrailsPath = absPath(cwd, options.guardrailsPath ?? ".poe-code-ralph/guardrails.md");
   const errorsLogPath = absPath(cwd, options.errorsLogPath ?? ".poe-code-ralph/errors.log");
   const activityLogPath = absPath(cwd, options.activityLogPath ?? ".poe-code-ralph/activity.log");
@@ -464,6 +466,7 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     const template = await fs.readFile(promptTemplatePath, "utf8");
     const prompt = renderPrompt(template, {
       PLAN_PATH: planPath,
+      PROGRESS_PATH: progressPath,
       REPO_ROOT: cwd,
       GUARDRAILS_PATH: guardrailsPath,
       ERRORS_LOG_PATH: errorsLogPath,
