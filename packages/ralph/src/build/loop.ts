@@ -37,6 +37,7 @@ type BuildLoopFileSystem = {
   ): Promise<void>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
   copyFile?(src: string, dest: string): Promise<void>;
+  symlink?(target: string, path: string): Promise<void>;
 };
 
 type SpawnFn = (
@@ -402,6 +403,22 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
 
     worktreeBranch = entry.branch;
     const worktreePath = entry.path;
+
+    // Symlink gitignored directories from original cwd into the worktree
+    const symlinkFn = fs.symlink ?? ((target: string, path: string) => fsPromises.symlink(target, path));
+    const exec = worktreeDeps.exec;
+    const dirsToLink = [".poe-code-ralph", ".agents/poe-code-ralph"];
+    for (const dir of dirsToLink) {
+      try {
+        await exec(`git check-ignore -q ${dir}`, { cwd: originalCwd });
+      } catch {
+        continue; // not gitignored, already in worktree checkout
+      }
+      const src = absPath(originalCwd, dir);
+      const dest = absPath(worktreePath, dir);
+      await fs.mkdir(dirname(dest), { recursive: true });
+      try { await symlinkFn(src, dest); } catch { /* already exists */ }
+    }
 
     // Copy the plan file into the worktree and reset all stories to open
     const destPlanPath = absPath(worktreePath, options.planPath);

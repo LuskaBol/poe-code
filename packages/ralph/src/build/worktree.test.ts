@@ -7,6 +7,8 @@ import { buildLoop } from "./loop.js";
 
 function createMemFs(files: Record<string, string> = {}): FileSystem & {
   copyFile(src: string, dest: string): Promise<void>;
+  symlink(target: string, path: string): Promise<void>;
+  lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
 } {
   const vol = Volume.fromJSON(files, "/");
   const promises = createFsFromVolume(vol).promises;
@@ -16,6 +18,13 @@ function createMemFs(files: Record<string, string> = {}): FileSystem & {
     async copyFile(src: string, dest: string): Promise<void> {
       const content = await promises.readFile(src, "utf8");
       await promises.writeFile(dest, content);
+    },
+    async symlink(target: string, path: string): Promise<void> {
+      await promises.symlink(target, path);
+    },
+    async lstat(path: string): Promise<{ isSymbolicLink(): boolean }> {
+      const stat = await promises.lstat(path);
+      return stat as { isSymbolicLink(): boolean };
     }
   };
 }
@@ -62,8 +71,12 @@ const PROMPT_TEMPLATE = [
   ""
 ].join("\n");
 
-function createWorktreeDeps(fs: ReturnType<typeof createMemFs>) {
+function createWorktreeDeps(
+  fs: ReturnType<typeof createMemFs>,
+  opts?: { gitignored?: string[] }
+) {
   const execCalls: { command: string; cwd?: string }[] = [];
+  const gitignored = new Set(opts?.gitignored ?? [".poe-code-ralph", ".agents/poe-code-ralph"]);
 
   return {
     deps: {
@@ -76,21 +89,33 @@ function createWorktreeDeps(fs: ReturnType<typeof createMemFs>) {
       exec: async (command: string, options?: { cwd?: string }) => {
         execCalls.push({ command, cwd: options?.cwd });
 
-        // Simulate git worktree add: create the worktree directory with prompt template
+        // Simulate git worktree add: create the worktree directory
+        // Non-gitignored dirs are checked out; gitignored ones are absent
         if (command.startsWith("git worktree add")) {
-          // Parse the path from the command: git worktree add -b <branch> <path> <baseBranch>
           const parts = command.split(" ");
-          const pathIndex = parts.indexOf("-b") + 2; // skip -b and branch name
+          const pathIndex = parts.indexOf("-b") + 2;
           const worktreePath = parts[pathIndex] ?? "";
           if (worktreePath) {
-            await fs.mkdir(`${worktreePath}/.agents/poe-code-ralph`, {
-              recursive: true
-            });
-            await fs.writeFile(
-              `${worktreePath}/.agents/poe-code-ralph/PROMPT_build.md`,
-              PROMPT_TEMPLATE,
-              { encoding: "utf8" }
-            );
+            await fs.mkdir(worktreePath, { recursive: true });
+            // Simulate checkout of non-gitignored files
+            if (!gitignored.has(".agents/poe-code-ralph")) {
+              await fs.mkdir(`${worktreePath}/.agents/poe-code-ralph`, {
+                recursive: true
+              });
+              await fs.writeFile(
+                `${worktreePath}/.agents/poe-code-ralph/PROMPT_build.md`,
+                PROMPT_TEMPLATE,
+                { encoding: "utf8" }
+              );
+            }
+          }
+        }
+
+        // Simulate git check-ignore: succeed for gitignored paths, fail otherwise
+        if (command.startsWith("git check-ignore")) {
+          const path = command.split(" ").pop() ?? "";
+          if (!gitignored.has(path)) {
+            throw new Error(`pathspec '${path}' did not match any file(s) known to git`);
           }
         }
 
@@ -174,12 +199,74 @@ describe("buildLoop with worktree", () => {
     expect(stdoutOutput).toContain("poe-code/plan-build-worktree");
     expect(stdoutOutput).toContain("git merge");
 
+    // Gitignored directories were symlinked into the worktree
+    const poeCodeRalphStat = await fs.lstat(
+      "/.poe-code-worktrees/plan-build-worktree/.poe-code-ralph"
+    );
+    expect(poeCodeRalphStat.isSymbolicLink()).toBe(true);
+
+    const agentsStat = await fs.lstat(
+      "/.poe-code-worktrees/plan-build-worktree/.agents/poe-code-ralph"
+    );
+    expect(agentsStat.isSymbolicLink()).toBe(true);
+
     // Worktree registry was updated to "done"
     const registryContent = await fs.readFile(
       "/.poe-code-worktrees/worktrees.yaml",
       "utf8"
     );
     expect(registryContent).toContain("done");
+  });
+
+  it("does not symlink directories that are not gitignored", async () => {
+    const fs = createWorktreeFs();
+    const { deps: worktreeDeps } = createWorktreeDeps(fs, { gitignored: [] });
+    const runId = "test-run-no-symlink";
+
+    const spawn = vi.fn(async () => ({
+      stdout: "<promise>COMPLETE</promise>",
+      stderr: "",
+      exitCode: 0
+    }));
+
+    await buildLoop({
+      planPath: ".agents/tasks/plan-build-worktree.yaml",
+      maxIterations: 3,
+      noCommit: true,
+      agent: "codex",
+      staleSeconds: 0,
+      cwd: "/",
+      worktree: { enabled: true },
+      deps: {
+        fs,
+        lock: noLock,
+        runId,
+        spawn,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        worktree: worktreeDeps,
+        git: {
+          getHead: () => null,
+          getCommitList: () => [],
+          getChangedFiles: () => [],
+          getDirtyFiles: () => [],
+          getCurrentBranch: () => "main"
+        },
+        now: () => new Date("2026-02-02T06:00:00.000Z")
+      }
+    });
+
+    // .poe-code-ralph should NOT be symlinked (not gitignored)
+    let isSymlink = false;
+    try {
+      const stat = await fs.lstat(
+        "/.poe-code-worktrees/plan-build-worktree/.poe-code-ralph"
+      );
+      isSymlink = stat.isSymbolicLink();
+    } catch {
+      // doesn't exist at all, which is fine
+    }
+    expect(isSymlink).toBe(false);
   });
 
   it("updates worktree status to failed on build failure", async () => {
