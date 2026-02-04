@@ -16,5 +16,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "lru-cache": "^11.2.5"
+  }
 }
