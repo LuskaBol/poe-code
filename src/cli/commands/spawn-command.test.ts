@@ -631,7 +631,7 @@ describe("spawn command", () => {
 
       const plainLog = stripAnsi(logs.join("\n"));
       expect(plainLog).toContain(
-        "Resume: claude --resume thread_abc123"
+        "Resume: cd /projects/demo && claude --resume thread_abc123"
       );
     } finally {
       processCwdSpy.mockRestore();
