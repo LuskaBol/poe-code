@@ -178,6 +178,33 @@ describe("spawnInteractive", () => {
     expect(options).toEqual(expect.objectContaining({ cwd: "/my/project" }));
   });
 
+  it("omits prompt args when prompt is empty", async () => {
+    const spawnMock = vi
+      .mocked(spawnChildProcess)
+      .mockReturnValue(createMockInheritProcess(0));
+
+    await spawnInteractive("claude-code", { prompt: "" });
+
+    const [, args] = spawnMock.mock.calls[0];
+    expect(args).toEqual([
+      ...claudeCodeSpawnConfig.interactive!.defaultArgs
+    ]);
+  });
+
+  it("omits prompt flag when prompt is empty for flag-based agents", async () => {
+    const spawnMock = vi
+      .mocked(spawnChildProcess)
+      .mockReturnValue(createMockInheritProcess(0));
+
+    await spawnInteractive("opencode", { prompt: "" });
+
+    const [, args] = spawnMock.mock.calls[0];
+    expect(args).toEqual([
+      ...openCodeSpawnConfig.interactive!.defaultArgs
+    ]);
+    expect(args).not.toContain(openCodeSpawnConfig.interactive!.promptFlag);
+  });
+
   it("appends extra args from options", async () => {
     const spawnMock = vi
       .mocked(spawnChildProcess)

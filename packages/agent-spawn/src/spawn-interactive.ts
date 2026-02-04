@@ -27,9 +27,15 @@ export async function spawnInteractive(
 
   const { interactive } = spawnConfig;
 
-  const args: string[] = interactive.promptFlag
-    ? [interactive.promptFlag, options.prompt]
-    : [options.prompt];
+  const args: string[] = [];
+
+  if (options.prompt) {
+    if (interactive.promptFlag) {
+      args.push(interactive.promptFlag, options.prompt);
+    } else {
+      args.push(options.prompt);
+    }
+  }
 
   if (options.model && spawnConfig.modelFlag) {
     args.push(spawnConfig.modelFlag, options.model);

@@ -73,5 +73,6 @@ export const openCodeSpawnConfig: CliSpawnConfig = {
   interactive: {
     defaultArgs: [],
     promptFlag: "--prompt"
-  }
+  },
+  resumeCommand: (threadId, cwd) => [cwd, "--session", threadId]
 };

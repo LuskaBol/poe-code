@@ -21,12 +21,13 @@ vi.mock("@poe-code/agent-spawn", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@poe-code/agent-spawn")>();
   return {
     ...actual,
+    getSpawnConfig: vi.fn(actual.getSpawnConfig),
     spawnInteractive: vi.fn()
   };
 });
 
 import { spawn as sdkSpawn } from "../../sdk/spawn.js";
-import { spawnInteractive } from "@poe-code/agent-spawn";
+import { getSpawnConfig, spawnInteractive } from "@poe-code/agent-spawn";
 
 const cwd = "/repo";
 const homeDir = "/home/test";
@@ -595,6 +596,170 @@ describe("spawn command", () => {
     expect(plainLog).not.toContain("Resume:");
   });
 
+  it("prints claude-code resume command with --resume flag", async () => {
+    vi.mocked(sdkSpawn).mockImplementation(() => ({
+      events: emptyAsyncIterable(),
+      result: Promise.resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        threadId: "thread_abc123"
+      })
+    }));
+
+    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
+
+    try {
+      const logs: string[] = [];
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: (message) => logs.push(message)
+      });
+
+      await program.parseAsync([
+        "node",
+        "cli",
+        "spawn",
+        "claude-code",
+        "hello"
+      ]);
+
+      const plainLog = stripAnsi(logs.join("\n"));
+      expect(plainLog).toContain(
+        "Resume: cd /projects/demo && claude --resume thread_abc123"
+      );
+    } finally {
+      processCwdSpy.mockRestore();
+    }
+  });
+
+  it("prints opencode resume command with positional cwd", async () => {
+    vi.mocked(sdkSpawn).mockImplementation(() => ({
+      events: emptyAsyncIterable(),
+      result: Promise.resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        threadId: "thread_abc123"
+      })
+    }));
+
+    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
+
+    try {
+      const logs: string[] = [];
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: (message) => logs.push(message)
+      });
+
+      await program.parseAsync([
+        "node",
+        "cli",
+        "spawn",
+        "opencode",
+        "hello"
+      ]);
+
+      const plainLog = stripAnsi(logs.join("\n"));
+      expect(plainLog).toContain(
+        "Resume: opencode /projects/demo --session thread_abc123"
+      );
+    } finally {
+      processCwdSpy.mockRestore();
+    }
+  });
+
+  it("prints kimi resume command with --session and --work-dir", async () => {
+    vi.mocked(sdkSpawn).mockImplementation(() => ({
+      events: emptyAsyncIterable(),
+      result: Promise.resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        threadId: "thread_abc123"
+      })
+    }));
+
+    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
+
+    try {
+      const logs: string[] = [];
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: (message) => logs.push(message)
+      });
+
+      await program.parseAsync([
+        "node",
+        "cli",
+        "spawn",
+        "kimi",
+        "hello"
+      ]);
+
+      const plainLog = stripAnsi(logs.join("\n"));
+      expect(plainLog).toContain(
+        "Resume: kimi --session thread_abc123 --work-dir /projects/demo"
+      );
+    } finally {
+      processCwdSpy.mockRestore();
+    }
+  });
+
+  it("does not print resume when config has no resumeCommand", async () => {
+    vi.mocked(sdkSpawn).mockImplementation(() => ({
+      events: emptyAsyncIterable(),
+      result: Promise.resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        threadId: "thread_abc123"
+      })
+    }));
+
+    vi.mocked(getSpawnConfig).mockReturnValueOnce({
+      kind: "cli",
+      agentId: "codex",
+      adapter: "codex",
+      promptFlag: "exec",
+      defaultArgs: []
+    });
+
+    const logs: string[] = [];
+    const { runner } = createCommandRunnerStub();
+    const program = createProgram({
+      fs,
+      prompts: vi.fn().mockResolvedValue({}),
+      env: { cwd, homeDir },
+      commandRunner: runner,
+      logger: (message) => logs.push(message)
+    });
+
+    await program.parseAsync([
+      "node",
+      "cli",
+      "spawn",
+      "codex",
+      "hello"
+    ]);
+
+    const plainLog = stripAnsi(logs.join("\n"));
+    expect(plainLog).not.toContain("Resume:");
+  });
+
   describe("--interactive flag", () => {
     it("calls spawnInteractive when --interactive is set", async () => {
       vi.mocked(spawnInteractive).mockResolvedValue({
@@ -756,6 +921,39 @@ describe("spawn command", () => {
 
       expect(sdkSpawn).not.toHaveBeenCalled();
       expect(chunks).toHaveLength(0);
+    });
+
+    it("works without a prompt in interactive mode", async () => {
+      vi.mocked(spawnInteractive).mockResolvedValue({
+        stdout: "",
+        stderr: "",
+        exitCode: 0
+      });
+
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: () => {}
+      });
+
+      await program.parseAsync([
+        "node",
+        "cli",
+        "spawn",
+        "--interactive",
+        "claude-code"
+      ]);
+
+      expect(spawnInteractive).toHaveBeenCalledWith("claude-code", {
+        prompt: "",
+        args: [],
+        model: undefined,
+        cwd: undefined
+      });
+      expect(sdkSpawn).not.toHaveBeenCalled();
     });
 
     it("passes model and cwd to spawnInteractive", async () => {

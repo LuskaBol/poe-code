@@ -16,5 +16,6 @@ export const kimiSpawnConfig: CliSpawnConfig = {
   interactive: {
     defaultArgs: [],
     promptFlag: "-p"
-  }
+  },
+  resumeCommand: (threadId, cwd) => ["--session", threadId, "--work-dir", cwd]
 };

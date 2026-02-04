@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Command } from "commander";
 import type { CliContainer } from "../container.js";
-import { renderAcpStream, spawnInteractive } from "@poe-code/agent-spawn";
+import { renderAcpStream, spawnInteractive, getSpawnConfig } from "@poe-code/agent-spawn";
 import { allAgents, resolveAgentId } from "@poe-code/agent-defs";
 import { text } from "@poe-code/design-system";
 import {
@@ -94,6 +94,18 @@ export function registerSpawnCommand(
         promptText = undefined;
       }
 
+      if (commandOptions.interactive) {
+        const adapter = resolveServiceAdapter(container, service);
+        const result = await spawnInteractive(adapter.name, {
+          prompt: promptText ?? "",
+          args: forwardedArgs,
+          model: commandOptions.model,
+          cwd: cwdOverride
+        });
+        process.exitCode = result.exitCode;
+        return;
+      }
+
       if (!promptText && shouldReadFromStdin) {
         const chunks: Buffer[] = [];
         for await (const chunk of process.stdin) {
@@ -113,18 +125,6 @@ export function registerSpawnCommand(
         cwd: cwdOverride,
         useStdin: shouldReadFromStdin
       };
-
-      if (commandOptions.interactive) {
-        const adapter = resolveServiceAdapter(container, service);
-        const result = await spawnInteractive(adapter.name, {
-          prompt: spawnOptions.prompt,
-          args: spawnOptions.args,
-          model: spawnOptions.model,
-          cwd: spawnOptions.cwd
-        });
-        process.exitCode = result.exitCode;
-        return;
-      }
 
       // Check for custom handlers first
       const directHandler = options.handlers?.[service];
@@ -212,14 +212,21 @@ export function registerSpawnCommand(
         }
 
         if (final.threadId) {
-          const resolvedId = resolveAgentId(canonicalService) ?? canonicalService;
-          const agentDefinition = allAgents.find((agent) => agent.id === resolvedId);
-          const binaryName = agentDefinition?.binaryName;
-          if (binaryName) {
-            const resumeCwd = spawnOptions.cwd ?? process.cwd();
-            const resumeCommand =
-              `${binaryName} resume -C ${shlexQuote(resumeCwd)} ${final.threadId}`;
-            resources.logger.info(text.muted(`\nResume: ${resumeCommand}`));
+          const spawnConfig = getSpawnConfig(canonicalService);
+          if (spawnConfig?.kind === "cli" && spawnConfig.resumeCommand) {
+            const resolvedId = resolveAgentId(canonicalService) ?? canonicalService;
+            const agentDefinition = allAgents.find((agent) => agent.id === resolvedId);
+            const binaryName = agentDefinition?.binaryName;
+            if (binaryName) {
+              const resumeCwd = path.resolve(spawnOptions.cwd ?? process.cwd());
+              const args = spawnConfig.resumeCommand(final.threadId, resumeCwd);
+              const agentCommand = [binaryName, ...args.map(shlexQuote)].join(" ");
+              const needsCdPrefix = !args.includes(resumeCwd);
+              const resumeCommand = needsCdPrefix
+                ? `cd ${shlexQuote(resumeCwd)} && ${agentCommand}`
+                : agentCommand;
+              resources.logger.info(text.muted(`\nResume: ${resumeCommand}`));
+            }
           }
         }
       } finally {
