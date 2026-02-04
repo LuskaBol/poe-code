@@ -69,5 +69,6 @@ export const openCodeSpawnConfig: CliSpawnConfig = {
   adapter: "opencode",
   promptFlag: "run",
   modelFlag: "--model",
-  defaultArgs: ["--format", "json"]
+  defaultArgs: ["--format", "json"],
+  resumeCommand: (threadId, cwd) => [cwd, "--session", threadId]
 };

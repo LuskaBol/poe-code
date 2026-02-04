@@ -11,5 +11,6 @@ export const codexSpawnConfig: CliSpawnConfig = {
   stdinMode: {
     omitPrompt: true,
     extraArgs: ["-"]
-  }
+  },
+  resumeCommand: (threadId, cwd) => ["resume", "-C", cwd, threadId]
 };
