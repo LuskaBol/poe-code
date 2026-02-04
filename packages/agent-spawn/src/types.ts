@@ -43,6 +43,11 @@ export interface StdinMode {
   extraArgs: string[];
 }
 
+export interface InteractiveSpawnConfig {
+  defaultArgs: string[];
+  promptFlag?: string;
+}
+
 export interface CliSpawnConfig {
   kind: "cli";
   agentId: string;
@@ -51,6 +56,7 @@ export interface CliSpawnConfig {
   defaultArgs: string[];
   stdinMode?: StdinMode;
   modelFlag?: string;
+  interactive?: InteractiveSpawnConfig;
 }
 
 export interface FileSpawnConfig {

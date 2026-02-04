@@ -10,6 +10,7 @@ export {
 export type {
   CliSpawnConfig,
   FileSpawnConfig,
+  InteractiveSpawnConfig,
   SpawnConfig,
   SpawnContext,
   SpawnLogger,
