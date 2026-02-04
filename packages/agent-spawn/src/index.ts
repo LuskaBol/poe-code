@@ -22,6 +22,7 @@ export type {
 
 export { allSpawnConfigs, getSpawnConfig } from "./configs/index.js";
 export { spawn } from "./spawn.js";
+export { spawnInteractive } from "./spawn-interactive.js";
 
 export { renderAcpEvent, renderAcpStream } from "./acp/renderer.js";
 export type { SpawnStreamingOptions, SpawnStreamingResult } from "./acp/spawn.js";
