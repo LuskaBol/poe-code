@@ -16,14 +16,50 @@ import {
   resolveCommandFlags,
   type CommandFlags
 } from "./shared.js";
-import ralphPromptPartialPlan from "../../templates/ralph/PROMPT_PARTIAL_plan.md";
-import ralphSkillPlan from "../../templates/ralph/SKILL_plan.md";
-import ralphPromptPlan from "../../templates/ralph/PROMPT_plan.md";
-import ralphPromptBuild from "../../templates/ralph/PROMPT_build.md";
-import ralphStateProgress from "../../templates/ralph/state/progress.md";
-import ralphStateGuardrails from "../../templates/ralph/state/guardrails.md";
-import ralphStateErrors from "../../templates/ralph/state/errors.log";
-import ralphStateActivity from "../../templates/ralph/state/activity.log";
+// Template imports are lazy to avoid breaking tsx/tsc output
+// (Node.js can't resolve .md/.log as ESM modules)
+const templateImports = {
+  promptPartialPlan: () => import("../../templates/ralph/PROMPT_PARTIAL_plan.md"),
+  skillPlan: () => import("../../templates/ralph/SKILL_plan.md"),
+  promptPlan: () => import("../../templates/ralph/PROMPT_plan.md"),
+  promptBuild: () => import("../../templates/ralph/PROMPT_build.md"),
+  stateProgress: () => import("../../templates/ralph/state/progress.md"),
+  stateGuardrails: () => import("../../templates/ralph/state/guardrails.md"),
+  stateErrors: () => import("../../templates/ralph/state/errors.log"),
+  stateActivity: () => import("../../templates/ralph/state/activity.log"),
+} as const;
+
+async function loadRalphTemplates() {
+  const [
+    promptPartialPlan,
+    skillPlan,
+    promptPlan,
+    promptBuild,
+    stateProgress,
+    stateGuardrails,
+    stateErrors,
+    stateActivity
+  ] = await Promise.all([
+    templateImports.promptPartialPlan(),
+    templateImports.skillPlan(),
+    templateImports.promptPlan(),
+    templateImports.promptBuild(),
+    templateImports.stateProgress(),
+    templateImports.stateGuardrails(),
+    templateImports.stateErrors(),
+    templateImports.stateActivity(),
+  ]);
+  return {
+    promptPartialPlan: promptPartialPlan.default,
+    skillPlan: skillPlan.default,
+    promptPlan: promptPlan.default,
+    promptBuild: promptBuild.default,
+    stateProgress: stateProgress.default,
+    stateGuardrails: stateGuardrails.default,
+    stateErrors: stateErrors.default,
+    stateActivity: stateActivity.default,
+  };
+}
 
 const DEFAULT_RALPH_AGENT = "claude-code";
 
@@ -141,8 +177,10 @@ async function installRalphTemplates(args: {
       throw new ValidationError(`Unsupported agent: ${args.agent}`);
     }
 
+    const templates = await loadRalphTemplates();
+
     // Install /plan skill to agent's skill directory
-    const skillContents = renderTemplate(ralphSkillPlan, { PROMPT_PARTIAL_PLAN: ralphPromptPartialPlan });
+    const skillContents = renderTemplate(templates.skillPlan, { PROMPT_PARTIAL_PLAN: templates.promptPartialPlan });
 
     const skillResult = await installSkill(
       args.agent,
@@ -159,7 +197,7 @@ async function installRalphTemplates(args: {
 
     // Install project templates to .agents/poe-code-ralph
     // PROMPT_plan.md: use string replace to preserve {{REQUEST}} and {{OUT_PATH}} as runtime variables
-    const promptPlanContents = ralphPromptPlan.replace("{{{PROMPT_PARTIAL_PLAN}}}", ralphPromptPartialPlan);
+    const promptPlanContents = templates.promptPlan.replace("{{{PROMPT_PARTIAL_PLAN}}}", templates.promptPartialPlan);
 
     const templateWrites = [
       {
@@ -170,7 +208,7 @@ async function installRalphTemplates(args: {
       {
         targetPath: path.join(cwd, ".agents", "poe-code-ralph", "PROMPT_build.md"),
         displayPath: ".agents/poe-code-ralph/PROMPT_build.md",
-        contents: ralphPromptBuild
+        contents: templates.promptBuild
       }
     ];
 
@@ -188,22 +226,22 @@ async function installRalphTemplates(args: {
     // Install state files to .poe-code-ralph
     const stateFiles = [
       {
-        contents: ralphStateProgress,
+        contents: templates.stateProgress,
         targetPath: path.join(cwd, ".poe-code-ralph", "progress.md"),
         displayPath: ".poe-code-ralph/progress.md"
       },
       {
-        contents: ralphStateGuardrails,
+        contents: templates.stateGuardrails,
         targetPath: path.join(cwd, ".poe-code-ralph", "guardrails.md"),
         displayPath: ".poe-code-ralph/guardrails.md"
       },
       {
-        contents: ralphStateErrors,
+        contents: templates.stateErrors,
         targetPath: path.join(cwd, ".poe-code-ralph", "errors.log"),
         displayPath: ".poe-code-ralph/errors.log"
       },
       {
-        contents: ralphStateActivity,
+        contents: templates.stateActivity,
         targetPath: path.join(cwd, ".poe-code-ralph", "activity.log"),
         displayPath: ".poe-code-ralph/activity.log"
       }
