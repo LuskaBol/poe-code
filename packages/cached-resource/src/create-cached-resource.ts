@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import type { CachedData, CacheConfig, FetchOptions } from "./types.js";
 import type { DiskCacheFs } from "./disk-cache.js";
+import { removeFromDisk } from "./disk-cache.js";
 import { createMemoryCache } from "./memory-cache.js";
 import { createRevalidator } from "./background-revalidator.js";
 import { resolveData } from "./cache-orchestrator.js";
@@ -15,6 +16,7 @@ export interface CachedResourceDeps {
 
 export interface CacheStats {
   memoryCacheSize: number;
+  memoryCacheMax: number;
   cacheDir: string;
 }
 
@@ -30,6 +32,7 @@ function createDefaultFs(): DiskCacheFs {
     readFile: (path, encoding) => fs.readFile(path, encoding),
     writeFile: (path, data) => fs.writeFile(path, data),
     mkdir: (path, options) => fs.mkdir(path, options).then(() => {}),
+    unlink: (path) => fs.unlink(path),
   };
 }
 
@@ -63,11 +66,13 @@ export function createCachedResource<T>(
 
     async clear(): Promise<void> {
       memoryCache.clear();
+      await removeFromDisk(config, { fs: diskFs });
     },
 
     stats(): CacheStats {
       return {
         memoryCacheSize: memoryCache.size,
+        memoryCacheMax: memoryCache.max,
         cacheDir: config.cacheDir,
       };
     },

@@ -14,6 +14,7 @@ function createMemFs(files: Record<string, string> = {}): DiskCacheFs {
       fs.writeFile(p, data) as Promise<void>,
     mkdir: (p: string, options?: { recursive?: boolean }) =>
       fs.mkdir(p, options) as Promise<void>,
+    unlink: (p: string) => fs.unlink(p) as Promise<void>,
   };
 }
 
@@ -128,7 +129,43 @@ describe("createCachedResource", () => {
     expect(resource.stats().memoryCacheSize).toBe(0);
   });
 
-  it("stats returns memory cache size and cache directory", async () => {
+  it("clear removes the filesystem cache file", async () => {
+    const memFs = createMemFs();
+    const mockFetch = createMockFetch(["net-a"]);
+    const resource = createCachedResource(bundledData, defaultConfig, {
+      fs: memFs,
+      fetch: mockFetch,
+    });
+
+    await resource.get();
+
+    await expect(
+      memFs.readFile("/cache/test.json", "utf8"),
+    ).resolves.toBeDefined();
+
+    await resource.clear();
+
+    await expect(
+      memFs.readFile("/cache/test.json", "utf8"),
+    ).rejects.toThrow();
+  });
+
+  it("clear silently ignores filesystem delete errors", async () => {
+    const memFs = createMemFs();
+    memFs.unlink = () => Promise.reject(new Error("permission denied"));
+    const mockFetch = createMockFetch(["net-a"]);
+    const resource = createCachedResource(bundledData, defaultConfig, {
+      fs: memFs,
+      fetch: mockFetch,
+    });
+
+    await resource.get();
+
+    await expect(resource.clear()).resolves.not.toThrow();
+    expect(resource.stats().memoryCacheSize).toBe(0);
+  });
+
+  it("stats returns memory cache size, max, and cache directory", async () => {
     const mockFetch = createMockFetch(["net-a"]);
     const resource = createCachedResource(bundledData, defaultConfig, {
       fs: createMemFs(),
@@ -137,6 +174,7 @@ describe("createCachedResource", () => {
 
     const initialStats = resource.stats();
     expect(initialStats.memoryCacheSize).toBe(0);
+    expect(initialStats.memoryCacheMax).toBe(100);
     expect(initialStats.cacheDir).toBe("/cache");
 
     await resource.get();

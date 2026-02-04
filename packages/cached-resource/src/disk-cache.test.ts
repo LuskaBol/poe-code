@@ -1,12 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { Volume, createFsFromVolume } from "memfs";
-import { loadFromDisk, persist, resolveCacheDir } from "./disk-cache.js";
+import { loadFromDisk, persist, removeFromDisk, resolveCacheDir } from "./disk-cache.js";
 import type { CachedData } from "./types.js";
 
 interface MemFs {
   readFile(path: string, encoding: BufferEncoding): Promise<string>;
   writeFile(path: string, data: string): Promise<void>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+  unlink(path: string): Promise<void>;
 }
 
 function createMemFs(files: Record<string, string> = {}): MemFs {
@@ -19,6 +20,7 @@ function createMemFs(files: Record<string, string> = {}): MemFs {
       fs.writeFile(p, data) as Promise<void>,
     mkdir: (p: string, options?: { recursive?: boolean }) =>
       fs.mkdir(p, options) as Promise<void>,
+    unlink: (p: string) => fs.unlink(p) as Promise<void>,
   };
 }
 
@@ -129,6 +131,34 @@ describe("persist", () => {
 
     await expect(
       persist("data", { cacheDir: "/cache", cacheName: "test" }, { fs }),
+    ).resolves.not.toThrow();
+  });
+});
+
+describe("removeFromDisk", () => {
+  it("deletes the cache file", async () => {
+    const cached = JSON.stringify({ data: ["a"], timestamp: Date.now() });
+    const fs = createMemFs({ "/cache/test.json": cached });
+
+    await removeFromDisk({ cacheDir: "/cache", cacheName: "test" }, { fs });
+
+    await expect(fs.readFile("/cache/test.json", "utf8")).rejects.toThrow();
+  });
+
+  it("silently ignores errors when file does not exist", async () => {
+    const fs = createMemFs();
+
+    await expect(
+      removeFromDisk({ cacheDir: "/cache", cacheName: "test" }, { fs }),
+    ).resolves.not.toThrow();
+  });
+
+  it("silently ignores unlink errors", async () => {
+    const fs = createMemFs();
+    fs.unlink = () => Promise.reject(new Error("permission denied"));
+
+    await expect(
+      removeFromDisk({ cacheDir: "/cache", cacheName: "test" }, { fs }),
     ).resolves.not.toThrow();
   });
 });

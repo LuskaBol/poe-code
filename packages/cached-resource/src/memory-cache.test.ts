@@ -59,6 +59,12 @@ describe("createMemoryCache", () => {
     expect(cache.size).toBe(2);
   });
 
+  it("exposes max capacity via max property", () => {
+    const cache = createMemoryCache<string>({ max: 42, ttl: 60_000 });
+
+    expect(cache.max).toBe(42);
+  });
+
   it("clears all entries", () => {
     const cache = createMemoryCache<string>({ max: 10, ttl: 60_000 });
 

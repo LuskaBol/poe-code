@@ -17,6 +17,9 @@ function createMockMemoryCache<T>(): MemoryCache<T> {
     get size() {
       return store.size;
     },
+    get max() {
+      return 100;
+    },
   };
 }
 
@@ -30,6 +33,7 @@ function createMemFs(files: Record<string, string> = {}): DiskCacheFs {
       fs.writeFile(p, data) as Promise<void>,
     mkdir: (p: string, options?: { recursive?: boolean }) =>
       fs.mkdir(p, options) as Promise<void>,
+    unlink: (p: string) => fs.unlink(p) as Promise<void>,
   };
 }
 

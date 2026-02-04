@@ -11,6 +11,7 @@ export interface MemoryCache<T> {
   set(key: string, value: CachedData<T>): void;
   clear(): void;
   readonly size: number;
+  readonly max: number;
 }
 
 export function createMemoryCache<T>(
@@ -28,6 +29,9 @@ export function createMemoryCache<T>(
     clear: () => lru.clear(),
     get size() {
       return lru.size;
+    },
+    get max() {
+      return lru.max;
     },
   };
 }

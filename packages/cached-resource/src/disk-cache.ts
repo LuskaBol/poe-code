@@ -6,6 +6,7 @@ export interface DiskCacheFs {
   readFile(path: string, encoding: BufferEncoding): Promise<string>;
   writeFile(path: string, data: string): Promise<void>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+  unlink(path: string): Promise<void>;
 }
 
 interface DiskCacheDeps {
@@ -51,6 +52,18 @@ export async function persist<T>(
     await deps.fs.writeFile(filePath, JSON.stringify(cached));
   } catch {
     // silently fail on write errors
+  }
+}
+
+export async function removeFromDisk(
+  config: Pick<CacheConfig, "cacheDir" | "cacheName">,
+  deps: DiskCacheDeps,
+): Promise<void> {
+  try {
+    const filePath = join(config.cacheDir, `${config.cacheName}.json`);
+    await deps.fs.unlink(filePath);
+  } catch {
+    // silently ignore delete errors (file may not exist)
   }
 }
 
