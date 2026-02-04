@@ -84,6 +84,37 @@ Don't write any screenshot tests, screenshots are only for adhoc validations
 
 When implementing features e.g. new cli args, make sure to keep parity with SDK and expose the same args.
 
+## Interactive CLI
+
+The goal is to have interactive CLI using the design_system
+However, it is imperative that all configuration can be done also via cli args
+
+Defaults are only accepted when --yes
+
+### Example <agent>
+
+`$ poe-code configure`
+
+- will prompt for agent and model, despite agent having a default
+
+`$ poe-code configure --agent claude`
+
+- will prompt only for model
+
+`$ poe-code configure --agent claude --model Claude-Sonnet-4.5`
+
+- will not prompt
+
+### --yes option
+
+Mainly for use in CI
+
+`$ poe-code configure --yes`
+
+- will accept the defaults
+
+Automatically accept defaults
+
 ## Other recommendations
 
 - For cli args parsing use `commander` package, don't roll your own
