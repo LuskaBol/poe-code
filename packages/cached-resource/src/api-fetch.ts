@@ -1,0 +1,33 @@
+import type { CacheConfig } from "./types.js";
+
+interface ApiFetchDeps {
+  fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+}
+
+export async function fetchFromApi<T>(
+  config: Pick<CacheConfig, "apiEndpoint" | "fetchTimeout">,
+  deps?: Partial<ApiFetchDeps>,
+): Promise<T> {
+  const fetchFn = deps?.fetch ?? globalThis.fetch;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), config.fetchTimeout);
+
+  try {
+    const response = await fetchFn(config.apiEndpoint, {
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`Request timed out after ${config.fetchTimeout}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
