@@ -438,6 +438,51 @@ describe("usage list command", () => {
     expect(confirmMock).toHaveBeenCalledTimes(1);
   });
 
+  it("loads all pages without prompting when --all is passed", async () => {
+    fs = createCredentialsVolume("test-key");
+    const page1Entries = [
+      { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+      { query_id: "entry-2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 }
+    ];
+    const page2Entries = [
+      { query_id: "entry-3", creation_time: 1705240800000000, bot_name: "Claude-Opus", cost_points: -100 }
+    ];
+
+    (httpClient as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: true, data: page1Entries })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: false, data: page2Entries })
+      });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--all"]);
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(httpClient).toHaveBeenCalledTimes(2);
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).toContain("gpt-5.2");
+    expect(output).toContain("Claude-Opus");
+    expect(logs.some((m) => m.includes("Usage History (3 entries)"))).toBe(true);
+  });
+
   it("filters results client-side when --filter provided", async () => {
     fs = createCredentialsVolume("test-key");
     const entries = [

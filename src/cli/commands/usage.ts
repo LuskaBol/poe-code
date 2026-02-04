@@ -102,6 +102,7 @@ export function registerUsageCommand(
     .command("list")
     .description("Display usage history.")
     .option("--filter <model>", "Filter results by model name")
+    .option("--all", "Load all pages without prompting")
     .action(async function (this: Command) {
       const flags = resolveCommandFlags(program);
       const resources = createExecutionResources(
@@ -109,7 +110,7 @@ export function registerUsageCommand(
         flags,
         "usage:list"
       );
-      const commandOptions = this.opts<{ filter?: string }>();
+      const commandOptions = this.opts<{ filter?: string; all?: boolean }>();
 
       resources.logger.intro("usage list");
 
@@ -181,9 +182,11 @@ export function registerUsageCommand(
 
           startingAfter = result.data[result.data.length - 1].query_id;
 
-          const shouldContinue = await confirm({ message: "Load more?" });
-          if (isCancel(shouldContinue) || !shouldContinue) {
-            break;
+          if (!commandOptions.all) {
+            const shouldContinue = await confirm({ message: "Load more?" });
+            if (isCancel(shouldContinue) || !shouldContinue) {
+              break;
+            }
           }
         }
 
