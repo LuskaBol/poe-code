@@ -17,7 +17,18 @@ vi.mock("../../sdk/spawn.js", () => ({
   spawn: vi.fn()
 }));
 
+vi.mock("@poe-code/agent-spawn", async () => {
+  const actual = await vi.importActual<
+    typeof import("@poe-code/agent-spawn")
+  >("@poe-code/agent-spawn");
+  return {
+    ...actual,
+    getSpawnConfig: vi.fn(actual.getSpawnConfig)
+  };
+});
+
 import { spawn as sdkSpawn } from "../../sdk/spawn.js";
+import { getSpawnConfig } from "@poe-code/agent-spawn";
 
 const cwd = "/repo";
 const homeDir = "/home/test";
@@ -563,6 +574,170 @@ describe("spawn command", () => {
         exitCode: 0
       })
     }));
+
+    const logs: string[] = [];
+    const { runner } = createCommandRunnerStub();
+    const program = createProgram({
+      fs,
+      prompts: vi.fn().mockResolvedValue({}),
+      env: { cwd, homeDir },
+      commandRunner: runner,
+      logger: (message) => logs.push(message)
+    });
+
+    await program.parseAsync([
+      "node",
+      "cli",
+      "spawn",
+      "codex",
+      "hello"
+    ]);
+
+    const plainLog = stripAnsi(logs.join("\n"));
+    expect(plainLog).not.toContain("Resume:");
+  });
+
+  it("prints claude-code resume command with --resume flag", async () => {
+    vi.mocked(sdkSpawn).mockImplementation(() => ({
+      events: emptyAsyncIterable(),
+      result: Promise.resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        threadId: "thread_abc123"
+      })
+    }));
+
+    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
+
+    try {
+      const logs: string[] = [];
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: (message) => logs.push(message)
+      });
+
+      await program.parseAsync([
+        "node",
+        "cli",
+        "spawn",
+        "claude-code",
+        "hello"
+      ]);
+
+      const plainLog = stripAnsi(logs.join("\n"));
+      expect(plainLog).toContain(
+        "Resume: claude --resume thread_abc123"
+      );
+    } finally {
+      processCwdSpy.mockRestore();
+    }
+  });
+
+  it("prints opencode resume command with positional cwd", async () => {
+    vi.mocked(sdkSpawn).mockImplementation(() => ({
+      events: emptyAsyncIterable(),
+      result: Promise.resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        threadId: "thread_abc123"
+      })
+    }));
+
+    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
+
+    try {
+      const logs: string[] = [];
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: (message) => logs.push(message)
+      });
+
+      await program.parseAsync([
+        "node",
+        "cli",
+        "spawn",
+        "opencode",
+        "hello"
+      ]);
+
+      const plainLog = stripAnsi(logs.join("\n"));
+      expect(plainLog).toContain(
+        "Resume: opencode /projects/demo --session thread_abc123"
+      );
+    } finally {
+      processCwdSpy.mockRestore();
+    }
+  });
+
+  it("prints kimi resume command with --session and --work-dir", async () => {
+    vi.mocked(sdkSpawn).mockImplementation(() => ({
+      events: emptyAsyncIterable(),
+      result: Promise.resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        threadId: "thread_abc123"
+      })
+    }));
+
+    const processCwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/projects/demo");
+
+    try {
+      const logs: string[] = [];
+      const { runner } = createCommandRunnerStub();
+      const program = createProgram({
+        fs,
+        prompts: vi.fn().mockResolvedValue({}),
+        env: { cwd, homeDir },
+        commandRunner: runner,
+        logger: (message) => logs.push(message)
+      });
+
+      await program.parseAsync([
+        "node",
+        "cli",
+        "spawn",
+        "kimi",
+        "hello"
+      ]);
+
+      const plainLog = stripAnsi(logs.join("\n"));
+      expect(plainLog).toContain(
+        "Resume: kimi --session thread_abc123 --work-dir /projects/demo"
+      );
+    } finally {
+      processCwdSpy.mockRestore();
+    }
+  });
+
+  it("does not print resume when config has no resumeCommand", async () => {
+    vi.mocked(sdkSpawn).mockImplementation(() => ({
+      events: emptyAsyncIterable(),
+      result: Promise.resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        threadId: "thread_abc123"
+      })
+    }));
+
+    vi.mocked(getSpawnConfig).mockReturnValueOnce({
+      kind: "cli",
+      agentId: "codex",
+      adapter: "codex",
+      promptFlag: "exec",
+      defaultArgs: []
+    });
 
     const logs: string[] = [];
     const { runner } = createCommandRunnerStub();
