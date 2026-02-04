@@ -109,6 +109,9 @@ describe("usage balance command", () => {
     expect(
       logs.some((message) => message.includes("Current balance: 1,500 points"))
     ).toBe(true);
+    expect(
+      logs.some((message) => message.includes("https://poe.com/api/keys"))
+    ).toBe(true);
   });
 
   it("shows balance when invoked without subcommand", async () => {

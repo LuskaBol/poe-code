@@ -66,6 +66,10 @@ async function executeBalance(
     const styledBalance = typography.bold(theme.accent(formatted));
 
     resources.logger.info(`Current balance: ${styledBalance} points`);
+    resources.logger.feedback(
+      "Need more points?",
+      "https://poe.com/api/keys"
+    );
   } catch (error) {
     if (error instanceof Error) {
       resources.logger.logException(error, "usage balance", {
