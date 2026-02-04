@@ -148,9 +148,8 @@ describe("buildLoop with worktree", () => {
     });
 
     // Worktree was created via exec
-    expect(execCalls.length).toBeGreaterThanOrEqual(1);
-    const createCmd = execCalls[0];
-    expect(createCmd?.command).toContain("git worktree add");
+    const createCmd = execCalls.find((c) => c.command.includes("git worktree add"));
+    expect(createCmd).toBeDefined();
     expect(createCmd?.command).toContain("poe-code/plan-build-worktree");
     expect(createCmd?.command).toContain("main");
 
@@ -280,7 +279,7 @@ describe("buildLoop with worktree", () => {
     expect(result.worktreeBranch).toBe("poe-code/my-custom-worktree");
 
     // Git command used custom name
-    const createCmd = execCalls[0];
+    const createCmd = execCalls.find((c) => c.command.includes("git worktree add"));
     expect(createCmd?.command).toContain("poe-code/my-custom-worktree");
   });
 
@@ -330,8 +329,99 @@ describe("buildLoop with worktree", () => {
     expect(result.worktreeBranch).toBe("poe-code/plan-feature-x");
 
     // Base branch was "develop"
-    const createCmd = execCalls[0];
+    const createCmd = execCalls.find((c) => c.command.includes("git worktree add"));
     expect(createCmd?.command).toContain("develop");
+  });
+
+  it("resets all story statuses to open when copying plan to worktree", async () => {
+    const donePlanYaml = stringify({
+      version: 1,
+      project: "Test",
+      goals: [],
+      nonGoals: [],
+      qualityGates: ["npm run test"],
+      stories: [
+        {
+          id: "US-001",
+          title: "First story",
+          status: "done",
+          dependsOn: [],
+          description: "Already done story.",
+          acceptanceCriteria: ["Criterion A"],
+          startedAt: "2026-01-01T00:00:00.000Z",
+          completedAt: "2026-01-01T01:00:00.000Z",
+          updatedAt: "2026-01-01T01:00:00.000Z"
+        },
+        {
+          id: "US-002",
+          title: "Second story",
+          status: "done",
+          dependsOn: ["US-001"],
+          description: "Also done.",
+          acceptanceCriteria: ["Criterion B"],
+          startedAt: "2026-01-02T00:00:00.000Z",
+          completedAt: "2026-01-02T01:00:00.000Z",
+          updatedAt: "2026-01-02T01:00:00.000Z"
+        }
+      ]
+    });
+
+    const fs = createMemFs({
+      "/.agents/poe-code-ralph/PROMPT_build.md": PROMPT_TEMPLATE,
+      "/.poe-code-ralph/errors.log": "",
+      "/.agents/tasks/plan-done.yaml": donePlanYaml
+    });
+    const { deps: worktreeDeps } = createWorktreeDeps(fs);
+    const runId = "test-run-reset";
+
+    const spawnCalls: string[] = [];
+    const spawn = vi.fn(async (_agent: string, options: { prompt: string; cwd?: string }) => {
+      spawnCalls.push(options.cwd ?? "");
+      return {
+        stdout: "<promise>COMPLETE</promise>",
+        stderr: "",
+        exitCode: 0
+      };
+    });
+
+    const result = await buildLoop({
+      planPath: ".agents/tasks/plan-done.yaml",
+      maxIterations: 5,
+      noCommit: true,
+      agent: "codex",
+      staleSeconds: 0,
+      cwd: "/",
+      worktree: { enabled: true },
+      deps: {
+        fs,
+        lock: noLock,
+        runId,
+        spawn,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        worktree: worktreeDeps,
+        git: {
+          getHead: () => null,
+          getCommitList: () => [],
+          getChangedFiles: () => [],
+          getDirtyFiles: () => [],
+          getCurrentBranch: () => "main"
+        },
+        now: () => new Date("2026-02-02T06:00:00.000Z")
+      }
+    });
+
+    // Both stories should have been processed (not skipped as already done)
+    expect(result.storiesDone).toEqual(["US-001", "US-002"]);
+    expect(spawn).toHaveBeenCalledTimes(2);
+
+    // Verify the worktree plan was reset before the loop started
+    const worktreePlanPath =
+      "/.poe-code-worktrees/plan-done/.agents/tasks/plan-done.yaml";
+    const finalPlan = parsePlan(await fs.readFile(worktreePlanPath, "utf8"));
+    // After successful run, stories should be done again
+    expect(finalPlan.stories[0]?.status).toBe("done");
+    expect(finalPlan.stories[1]?.status).toBe("done");
   });
 
   it("does not create worktree when worktree option is not set", async () => {

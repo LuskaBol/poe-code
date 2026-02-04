@@ -87,6 +87,68 @@ describe("createWorktree", () => {
     expect(result.createdAt).toBeDefined();
   });
 
+  it("cleans up existing worktree and branch before creating", async () => {
+    const fs = createMemFs();
+    const exec = vi.fn<ExecFn>().mockResolvedValue({ stdout: "", stderr: "" });
+
+    // First call: create the worktree
+    await createWorktree({
+      cwd: "/repo",
+      name: "my-feature",
+      baseBranch: "main",
+      source: "ralph-build",
+      agent: "codex",
+      deps: { fs, exec }
+    });
+
+    const registryBefore = await readRegistry("/repo", fs);
+    expect(registryBefore.worktrees).toHaveLength(1);
+
+    // Second call: re-create with same name — should clean up first
+    await createWorktree({
+      cwd: "/repo",
+      name: "my-feature",
+      baseBranch: "main",
+      source: "ralph-build",
+      agent: "codex",
+      deps: { fs, exec }
+    });
+
+    // Should have called worktree remove + branch delete before the second add
+    const commands = exec.mock.calls.map((c) => c[0]);
+    expect(commands).toContain(
+      "git worktree remove /repo/.poe-code-worktrees/my-feature --force"
+    );
+    expect(commands).toContain("git branch -D poe-code/my-feature");
+
+    // Registry should have exactly one entry (old replaced)
+    const registryAfter = await readRegistry("/repo", fs);
+    expect(registryAfter.worktrees).toHaveLength(1);
+    expect(registryAfter.worktrees[0]!.status).toBe("active");
+  });
+
+  it("ignores cleanup errors when no previous worktree exists", async () => {
+    const fs = createMemFs();
+    const exec = vi.fn<ExecFn>().mockImplementation(async (command: string) => {
+      if (command.includes("worktree remove") || command.includes("branch -D")) {
+        throw new Error("not found");
+      }
+      return { stdout: "", stderr: "" };
+    });
+
+    const result = await createWorktree({
+      cwd: "/repo",
+      name: "fresh-feature",
+      baseBranch: "main",
+      source: "ralph-build",
+      agent: "codex",
+      deps: { fs, exec }
+    });
+
+    expect(result.name).toBe("fresh-feature");
+    expect(result.status).toBe("active");
+  });
+
   it("does not include optional fields when not provided", async () => {
     const fs = createMemFs();
     const exec = createMockExec();

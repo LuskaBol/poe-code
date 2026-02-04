@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { addWorktreeEntry } from "./registry.js";
+import { addWorktreeEntry, removeWorktreeEntry } from "./registry.js";
 import type { Worktree, WorktreeDeps } from "./types.js";
 
 export type CreateWorktreeOptions = {
@@ -19,6 +19,15 @@ export async function createWorktree(
 ): Promise<Worktree> {
   const branch = `poe-code/${opts.name}`;
   const worktreePath = join(opts.cwd, ".poe-code-worktrees", opts.name);
+
+  // Clean up any existing worktree/branch from a previous run
+  try {
+    await opts.deps.exec(`git worktree remove ${worktreePath} --force`, { cwd: opts.cwd });
+  } catch { /* worktree may not exist */ }
+  try {
+    await opts.deps.exec(`git branch -D ${branch}`, { cwd: opts.cwd });
+  } catch { /* branch may not exist */ }
+  await removeWorktreeEntry(opts.cwd, opts.name, opts.deps.fs).catch(() => {});
 
   await opts.deps.exec(
     `git worktree add -b ${branch} ${worktreePath} ${opts.baseBranch}`,

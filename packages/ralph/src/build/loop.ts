@@ -403,10 +403,23 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     worktreeBranch = entry.branch;
     const worktreePath = entry.path;
 
-    // Copy the plan file into the worktree
+    // Copy the plan file into the worktree and reset all stories to open
     const destPlanPath = absPath(worktreePath, options.planPath);
     await fs.mkdir(dirname(destPlanPath), { recursive: true });
     await copyFile(planPath, destPlanPath);
+
+    const copiedRaw = await fs.readFile(destPlanPath, "utf8");
+    const copiedPlan = parsePlan(copiedRaw);
+    for (const story of copiedPlan.stories) {
+      story.status = "open";
+      story.startedAt = undefined;
+      story.completedAt = undefined;
+      story.updatedAt = undefined;
+    }
+    await writePlan(destPlanPath, copiedPlan, {
+      fs,
+      lock: async () => async () => {}
+    });
 
     // Switch cwd and planPath to the worktree
     cwd = worktreePath;
