@@ -12,5 +12,9 @@ export const kimiSpawnConfig: CliSpawnConfig = {
   stdinMode: {
     omitPrompt: true,
     extraArgs: ["--input-format", "stream-json"]
+  },
+  interactive: {
+    defaultArgs: [],
+    promptFlag: "-p"
   }
 };

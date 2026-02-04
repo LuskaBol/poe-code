@@ -11,5 +11,8 @@ export const codexSpawnConfig: CliSpawnConfig = {
   stdinMode: {
     omitPrompt: true,
     extraArgs: ["-"]
+  },
+  interactive: {
+    defaultArgs: ["-a", "never"]
   }
 };

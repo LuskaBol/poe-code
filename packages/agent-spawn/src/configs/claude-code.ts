@@ -19,5 +19,8 @@ export const claudeCodeSpawnConfig: CliSpawnConfig = {
   stdinMode: {
     omitPrompt: true,
     extraArgs: ["--input-format", "text"]
+  },
+  interactive: {
+    defaultArgs: ["--allowedTools", "Bash,Read", "--permission-mode", "acceptEdits"]
   }
 };

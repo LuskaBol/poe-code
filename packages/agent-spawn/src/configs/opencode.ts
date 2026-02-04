@@ -69,5 +69,9 @@ export const openCodeSpawnConfig: CliSpawnConfig = {
   adapter: "opencode",
   promptFlag: "run",
   modelFlag: "--model",
-  defaultArgs: ["--format", "json"]
+  defaultArgs: ["--format", "json"],
+  interactive: {
+    defaultArgs: [],
+    promptFlag: "--prompt"
+  }
 };
