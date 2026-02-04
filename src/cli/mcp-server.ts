@@ -153,7 +153,8 @@ export async function generateImage(
 }
 
 export async function generateVideo(
-  args: GenerateMediaArgs
+  args: GenerateMediaArgs,
+  outputFormatPreferences: McpOutputFormat[] = ["url"]
 ): Promise<McpToolResult> {
   const client = getGlobalClient();
   const model = args.bot_name ?? DEFAULT_VIDEO_BOT;
@@ -165,7 +166,7 @@ export async function generateVideo(
   return toPreferredMediaContent({
     mediaType: "video",
     model,
-    outputFormatPreferences: ["url"],
+    outputFormatPreferences,
     response
   });
 }
@@ -191,6 +192,22 @@ export async function generateAudio(
 
 type MediaType = "image" | "audio" | "video";
 
+function filenameFromUrlPathname(url: string, fallback: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.pathname.endsWith("/")) {
+      return fallback;
+    }
+    const segments = parsed.pathname
+      .split("/")
+      .filter((segment) => segment.length > 0);
+    const last = segments.at(-1);
+    return last && last.length > 0 ? last : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 async function toPreferredMediaContent(options: {
   mediaType: MediaType;
   model: string;
@@ -205,6 +222,30 @@ async function toPreferredMediaContent(options: {
   const preferenceErrors: string[] = [];
 
   for (const format of options.outputFormatPreferences) {
+    if (format === "markdown") {
+      if (!options.response.url) {
+        throw new Error(
+          `markdown output requires a URL for ${options.mediaType}. Model response did not include a URL.`
+        );
+      }
+
+      if (options.mediaType === "image") {
+        content.push({
+          type: "text",
+          text: `![Image](${options.response.url})`
+        });
+        return content;
+      }
+
+      const fallbackFilename = options.mediaType === "audio" ? "audio" : "video";
+      const filename = filenameFromUrlPathname(options.response.url, fallbackFilename);
+      content.push({
+        type: "text",
+        text: `[${filename}](${options.response.url})`
+      });
+      return content;
+    }
+
     if (format === "url") {
       if (options.response.url) {
         content.push({ type: "text", text: options.response.url });
@@ -384,7 +425,7 @@ export function createMcpServer(
           prompt: args.prompt,
           bot_name: args.bot_name,
           params: normalizeParams(args.params)
-        });
+        }, outputFormatPreferences);
       }
     )
     .tool(

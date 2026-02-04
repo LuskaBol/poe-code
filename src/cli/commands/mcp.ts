@@ -72,7 +72,7 @@ export function registerMcpCommand(
     .description("Run MCP server on stdin/stdout")
     .option(
       "--output-format <format>",
-      'Preferred MCP media output format(s): "url", "base64", or comma-separated list (default: "url").'
+      'Preferred MCP media output format(s): "url", "base64", "markdown", or comma-separated list (default: "url"). Note: "markdown" cannot be combined with other formats.'
     )
     .addHelpText("after", buildHelpText())
     .action(async (options: { outputFormat?: string }) => {

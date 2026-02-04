@@ -93,6 +93,9 @@ describe("mcp command", () => {
       expect(helpOutput).not.toContain("Available Agents");
       expect(helpOutput).not.toContain("--agent");
       expect(helpOutput).toContain("--output-format");
+      expect(helpOutput).toContain('Preferred MCP media output format');
+      expect(helpOutput).toContain('"markdown"');
+      expect(helpOutput).toContain("cannot be combined");
       expect(helpOutput).toContain("Available Tools");
       expect(helpOutput).toContain("generate_text");
       expect(helpOutput).toContain("generate_image");
@@ -152,6 +155,31 @@ describe("mcp command", () => {
         "base64,url"
       ]);
       expect(transportSpy).toHaveBeenCalledWith(["base64", "url"]);
+    } finally {
+      initSpy.mockRestore();
+      transportSpy.mockRestore();
+    }
+  });
+
+  it("passes markdown --output-format preference to transport", async () => {
+    const { program } = createMcpProgram();
+    const initSpy = vi
+      .spyOn(clientInstance, "initializeClient")
+      .mockResolvedValue(undefined);
+    const transportSpy = vi
+      .spyOn(mcpServer, "runMcpServerWithTransport")
+      .mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "cli",
+        "mcp",
+        "serve",
+        "--output-format",
+        "markdown"
+      ]);
+      expect(transportSpy).toHaveBeenCalledWith(["markdown"]);
     } finally {
       initSpy.mockRestore();
       transportSpy.mockRestore();
@@ -304,6 +332,36 @@ describe("mcp server tools", () => {
     expect(result).toEqual([{ type: "text", text: "https://example.com/media.png" }]);
   });
 
+  it("generate_image renders markdown when requested", async () => {
+    const { generateImage } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      url: "https://example.com/media.png",
+      mimeType: "image/png"
+    }));
+
+    const result = await generateImage({ prompt: "A sunset" }, ["markdown"]);
+
+    expect(result).toEqual([
+      { type: "text", text: "![Image](https://example.com/media.png)" }
+    ]);
+  });
+
+  it("generate_image throws when markdown output is missing a URL", async () => {
+    const { generateImage } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      data: "BASE64IMAGE",
+      mimeType: "image/png"
+    }));
+
+    await expect(generateImage({ prompt: "Test" }, ["markdown"])).rejects.toThrowError(
+      new Error(
+        "markdown output requires a URL for image. Model response did not include a URL."
+      )
+    );
+  });
+
   it("generate_image emits base64 image blocks when preferred", async () => {
     const { generateImage } = await import("../mcp-server.js");
 
@@ -393,6 +451,37 @@ describe("mcp server tools", () => {
     expect(result).toEqual([{ type: "text", text: "https://example.com/video.mp4" }]);
   });
 
+  it("generate_video renders markdown when requested", async () => {
+    const { generateVideo } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      url: "https://example.com/videos/clip",
+      mimeType: "video/mp4"
+    }));
+
+    const result = await generateVideo({ prompt: "A rocket launch" }, ["markdown"]);
+
+    expect(result).toEqual([
+      { type: "text", text: "[clip](https://example.com/videos/clip)" }
+    ]);
+  });
+
+  it("generate_video throws when markdown output is missing a URL", async () => {
+    const { generateVideo } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      mimeType: "video/mp4"
+    }));
+
+    await expect(
+      generateVideo({ prompt: "A rocket launch" }, ["markdown"])
+    ).rejects.toThrowError(
+      new Error(
+        "markdown output requires a URL for video. Model response did not include a URL."
+      )
+    );
+  });
+
   it("generate_audio uses client.media() with default bot", async () => {
     const { generateAudio } = await import("../mcp-server.js");
 
@@ -411,6 +500,69 @@ describe("mcp server tools", () => {
       params: undefined
     });
     expect(result).toEqual([{ type: "text", text: "https://example.com/audio.mp3" }]);
+  });
+
+  it("generate_audio renders markdown when requested", async () => {
+    const { generateAudio } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      url: "https://example.com/audio/audio.mp3",
+      mimeType: "audio/mpeg"
+    }));
+
+    const result = await generateAudio({ prompt: "Hello world" }, ["markdown"]);
+
+    expect(result).toEqual([
+      { type: "text", text: "[audio.mp3](https://example.com/audio/audio.mp3)" }
+    ]);
+  });
+
+  it("generate_audio throws when markdown output is missing a URL", async () => {
+    const { generateAudio } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      data: "BASE64AUDIO",
+      mimeType: "audio/mpeg"
+    }));
+
+    await expect(generateAudio({ prompt: "Hello world" }, ["markdown"])).rejects.toThrowError(
+      new Error(
+        "markdown output requires a URL for audio. Model response did not include a URL."
+      )
+    );
+  });
+
+  it("extracts filenames from URL pathnames for markdown links", async () => {
+    const { generateAudio, generateVideo } = await import("../mcp-server.js");
+
+    mockClient.media = vi.fn(async () => ({
+      url: "https://example.com/media/sound.mp3",
+      mimeType: "audio/mpeg"
+    }));
+
+    await expect(generateAudio({ prompt: "Hello world" }, ["markdown"])).resolves.toEqual(
+      [{ type: "text", text: "[sound.mp3](https://example.com/media/sound.mp3)" }]
+    );
+
+    mockClient.media = vi.fn(async () => ({
+      url: "https://example.com/media/no-extension",
+      mimeType: "video/mp4"
+    }));
+
+    await expect(
+      generateVideo({ prompt: "A rocket launch" }, ["markdown"])
+    ).resolves.toEqual([
+      { type: "text", text: "[no-extension](https://example.com/media/no-extension)" }
+    ]);
+
+    mockClient.media = vi.fn(async () => ({
+      url: "https://example.com/media/",
+      mimeType: "audio/mpeg"
+    }));
+
+    await expect(generateAudio({ prompt: "Hello world" }, ["markdown"])).resolves.toEqual(
+      [{ type: "text", text: "[audio](https://example.com/media/)" }]
+    );
   });
 
   it("generate_audio emits base64 audio blocks when preferred", async () => {
