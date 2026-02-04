@@ -4,7 +4,7 @@ import { createExecutionResources, resolveCommandFlags } from "./shared.js";
 import { loadCredentials } from "../../services/credentials.js";
 import { AuthenticationError, ApiError } from "../errors.js";
 import { Table } from "console-table-printer";
-import { confirm, isCancel } from "@poe-code/design-system";
+import { confirm, isCancel, getTheme } from "@poe-code/design-system";
 
 export function registerUsageCommand(
   program: Command,
@@ -190,11 +190,40 @@ export function registerUsageCommand(
           );
         }
 
+        const theme = getTheme();
+
         const table = new Table({
+          style: {
+            headerTop: {
+              left: theme.muted("┌"),
+              mid: theme.muted("┬"),
+              right: theme.muted("┐"),
+              other: theme.muted("─")
+            },
+            headerBottom: {
+              left: theme.muted("├"),
+              mid: theme.muted("┼"),
+              right: theme.muted("┤"),
+              other: theme.muted("─")
+            },
+            tableBottom: {
+              left: theme.muted("└"),
+              mid: theme.muted("┴"),
+              right: theme.muted("┘"),
+              other: theme.muted("─")
+            },
+            vertical: theme.muted("│"),
+            rowSeparator: {
+              left: theme.muted("├"),
+              mid: theme.muted("┼"),
+              right: theme.muted("┤"),
+              other: theme.muted("─")
+            }
+          },
           columns: [
-            { name: "Date", alignment: "left" },
-            { name: "Model", alignment: "left" },
-            { name: "Cost", alignment: "right" }
+            { name: "Date", title: theme.header("Date"), alignment: "left" },
+            { name: "Model", title: theme.header("Model"), alignment: "left" },
+            { name: "Cost", title: theme.header("Cost"), alignment: "right" }
           ]
         });
 
@@ -208,9 +237,12 @@ export function registerUsageCommand(
           const formatted = `${year}-${month}-${day} ${hours}:${minutes}`;
 
           table.addRow({
-            Date: formatted,
-            Model: entry.model,
-            Cost: entry.cost
+            Date: theme.muted(formatted),
+            Model: theme.accent(entry.model),
+            Cost:
+              entry.cost < 0
+                ? theme.error(String(entry.cost))
+                : theme.success(String(entry.cost))
           });
         }
 

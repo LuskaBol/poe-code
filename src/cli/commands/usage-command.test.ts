@@ -6,13 +6,33 @@ import type { HttpClient } from "../http.js";
 
 const confirmMock = vi.hoisted(() => vi.fn());
 const isCancelMock = vi.hoisted(() => vi.fn().mockReturnValue(false));
+const getThemeMock = vi.hoisted(() => vi.fn());
+
+function createIdentityTheme() {
+  return {
+    header: (t: string) => t,
+    divider: (t: string) => t,
+    prompt: (t: string) => t,
+    number: (t: string) => t,
+    intro: (t: string) => t,
+    resolvedSymbol: "◇",
+    errorSymbol: "■",
+    accent: (t: string) => t,
+    muted: (t: string) => t,
+    success: (t: string) => t,
+    warning: (t: string) => t,
+    error: (t: string) => t,
+    info: (t: string) => t
+  };
+}
 
 vi.mock("@poe-code/design-system", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@poe-code/design-system")>();
   return {
     ...actual,
     confirm: confirmMock,
-    isCancel: isCancelMock
+    isCancel: isCancelMock,
+    getTheme: getThemeMock
   };
 });
 
@@ -45,6 +65,7 @@ describe("usage balance command", () => {
     fs = createMemfs(homeDir);
     logs = [];
     httpClient = vi.fn();
+    getThemeMock.mockReset().mockReturnValue(createIdentityTheme());
   });
 
   it("fetches and displays current balance", async () => {
@@ -142,6 +163,7 @@ describe("usage list command", () => {
     httpClient = vi.fn();
     confirmMock.mockReset();
     isCancelMock.mockReset().mockReturnValue(false);
+    getThemeMock.mockReset().mockReturnValue(createIdentityTheme());
   });
 
   it("fetches and displays usage history from GET /usage/points_history with limit=20", async () => {
@@ -395,5 +417,201 @@ describe("usage list command", () => {
     expect(output).not.toContain("gpt-5.2");
     expect(logs.some((m) => m.includes('Usage History (2 of 4 entries match "claude")'))).toBe(true);
     expect(httpClient).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("usage list table styling", () => {
+  let fs: FileSystem;
+  let logs: string[];
+  let httpClient: HttpClient;
+
+  beforeEach(() => {
+    fs = createMemfs(homeDir);
+    logs = [];
+    httpClient = vi.fn();
+    confirmMock.mockReset();
+    isCancelMock.mockReset().mockReturnValue(false);
+    getThemeMock.mockReset().mockReturnValue(createIdentityTheme());
+  });
+
+  it("styles column headers with theme.header", async () => {
+    const headerFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), header: headerFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(headerFn).toHaveBeenCalledWith("Date");
+    expect(headerFn).toHaveBeenCalledWith("Model");
+    expect(headerFn).toHaveBeenCalledWith("Cost");
+  });
+
+  it("styles date values with theme.muted", async () => {
+    const mutedFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), muted: mutedFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(mutedFn).toHaveBeenCalledWith("2024-01-15 10:30");
+  });
+
+  it("styles model values with theme.accent", async () => {
+    const accentFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), accent: accentFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [
+          { timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+          { timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+        ]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(accentFn).toHaveBeenCalledWith("Claude-Sonnet-4.5");
+    expect(accentFn).toHaveBeenCalledWith("gpt-5.2");
+  });
+
+  it("color-codes negative costs with theme.error", async () => {
+    const errorFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), error: errorFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(errorFn).toHaveBeenCalledWith("-50");
+  });
+
+  it("color-codes zero and positive costs with theme.success", async () => {
+    const successFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), success: successFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [
+          { timestamp: "2024-01-15T10:30:00Z", model: "model-a", cost: 0 },
+          { timestamp: "2024-01-15T09:15:00Z", model: "model-b", cost: 10 }
+        ]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(successFn).toHaveBeenCalledWith("0");
+    expect(successFn).toHaveBeenCalledWith("10");
+  });
+
+  it("styles table borders with theme.muted", async () => {
+    const mutedFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), muted: mutedFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(mutedFn).toHaveBeenCalledWith("┌");
+    expect(mutedFn).toHaveBeenCalledWith("─");
+    expect(mutedFn).toHaveBeenCalledWith("│");
+    expect(mutedFn).toHaveBeenCalledWith("└");
   });
 });
