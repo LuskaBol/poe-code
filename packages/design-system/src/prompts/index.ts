@@ -1,21 +1,48 @@
 import * as clack from "@clack/prompts";
 import { text as textComponent } from "../components/text.js";
+import { resolveOutputFormat } from "../internal/output-format.js";
 
 export { isCancel, cancel, log } from "@clack/prompts";
 
+function stripAnsi(value: string): string {
+  return value.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
 export function intro(title: string): void {
+  const format = resolveOutputFormat();
+  if (format === "markdown") {
+    process.stdout.write(`# ${stripAnsi(title)}\n\n`);
+    return;
+  }
+  if (format === "json") {
+    return;
+  }
   clack.intro(textComponent.intro(title));
 }
 
 export function introPlain(title: string): void {
+  const format = resolveOutputFormat();
+  if (format === "markdown") {
+    process.stdout.write(`# ${stripAnsi(title)}\n\n`);
+    return;
+  }
+  if (format === "json") {
+    return;
+  }
   clack.intro(title);
 }
 
 export function outro(message: string): void {
+  if (resolveOutputFormat() !== "terminal") {
+    return;
+  }
   clack.outro(message);
 }
 
 export function note(message: string, title?: string): void {
+  if (resolveOutputFormat() !== "terminal") {
+    return;
+  }
   clack.note(message, title);
 }
 

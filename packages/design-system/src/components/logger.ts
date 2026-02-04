@@ -1,6 +1,7 @@
 import { log } from "@clack/prompts";
 import chalk from "chalk";
 import { symbols } from "./symbols.js";
+import { resolveOutputFormat } from "../internal/output-format.js";
 
 export interface LoggerOutput {
   info(message: string): void;
@@ -19,6 +20,10 @@ export function createLogger(emitter?: (message: string) => void): LoggerOutput 
   ): void => {
     if (emitter) {
       emitter(message);
+      return;
+    }
+    if (resolveOutputFormat() !== "terminal") {
+      process.stdout.write(message + "\n");
       return;
     }
     if (level === "success") {

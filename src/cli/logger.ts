@@ -3,7 +3,8 @@ import {
   introPlain,
   log,
   note,
-  outro
+  outro,
+  resolveOutputFormat
 } from "@poe-code/design-system";
 import chalk from "chalk";
 import type { LoggerFn } from "./types.js";
@@ -85,6 +86,10 @@ export function createLoggerFactory(
       emitter(message);
       return;
     }
+    if (resolveOutputFormat() !== "terminal") {
+      process.stdout.write(message + "\n");
+      return;
+    }
     if (level === "success") {
       log.message(message, { symbol: successSymbol });
       return;
@@ -124,6 +129,10 @@ export function createLoggerFactory(
       errorResolved(label, value) {
         if (emitter) {
           emitter(`${label}: ${value}`);
+          return;
+        }
+        if (resolveOutputFormat() !== "terminal") {
+          process.stdout.write(`${label}: ${value}\n`);
           return;
         }
         const symbol = theme?.errorSymbol ?? chalk.red("■");
@@ -174,6 +183,10 @@ export function createLoggerFactory(
           emitter(formatMessage(message));
           return;
         }
+        if (resolveOutputFormat() !== "terminal") {
+          process.stdout.write(formatMessage(message) + "\n");
+          return;
+        }
         log.message(formatMessage(message), { symbol: chalk.gray("│") });
       },
       intro(title) {
@@ -190,6 +203,10 @@ export function createLoggerFactory(
       resolved(label, value) {
         if (emitter) {
           emitter(`${label}: ${value}`);
+          return;
+        }
+        if (resolveOutputFormat() !== "terminal") {
+          process.stdout.write(`${label}: ${value}\n`);
           return;
         }
         const symbol = theme?.resolvedSymbol ?? chalk.magenta("◇");
