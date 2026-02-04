@@ -134,14 +134,19 @@ export function registerUsageCommand(
 
         const theme = getTheme();
         const filterTerm = commandOptions.filter;
-        const dateWidth = 16;
-        const costWidth = 10;
+        const tzAbbr = Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
+          .formatToParts(new Date())
+          .find((p) => p.type === "timeZoneName")?.value ?? "local";
+        const dateTitle = `Date [${tzAbbr}]`;
+        const dateWidth = Math.max(16, dateTitle.length);
+        const costTitle = "Cost (compute points)";
+        const costWidth = Math.max(10, costTitle.length);
         const tableChrome = 10;
         const modelMaxWidth = widths.maxLine - dateWidth - costWidth - tableChrome;
         const tableColumns = [
-          { name: "Date", title: "Date", alignment: "left" as const, maxLen: dateWidth },
+          { name: "Date", title: dateTitle, alignment: "left" as const, maxLen: dateWidth },
           { name: "Model", title: "Model", alignment: "left" as const, maxLen: modelMaxWidth },
-          { name: "Cost", title: "Cost", alignment: "right" as const, maxLen: costWidth }
+          { name: "Cost", title: costTitle, alignment: "right" as const, maxLen: costWidth }
         ];
 
         const formatEntry = (entry: {
@@ -150,11 +155,11 @@ export function registerUsageCommand(
           cost_points: number;
         }): Record<string, string> => {
           const date = new Date(entry.creation_time / 1000);
-          const year = date.getUTCFullYear();
-          const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-          const day = String(date.getUTCDate()).padStart(2, "0");
-          const hours = String(date.getUTCHours()).padStart(2, "0");
-          const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, "0");
+          const day = String(date.getDate()).padStart(2, "0");
+          const hours = String(date.getHours()).padStart(2, "0");
+          const minutes = String(date.getMinutes()).padStart(2, "0");
           const formatted = `${year}-${month}-${day} ${hours}:${minutes}`;
           const modelName = entry.bot_name.length > modelMaxWidth
             ? entry.bot_name.slice(0, modelMaxWidth - 1) + "\u2026"

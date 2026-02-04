@@ -48,6 +48,16 @@ const cwd = "/repo";
 const homeDir = "/home/test";
 const credentialsPath = `${homeDir}/.poe-code/credentials.json`;
 
+function formatLocalDate(microseconds: number): string {
+  const date = new Date(microseconds / 1000);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
 function createMemfs(homeDir: string): FileSystem {
   const volume = new Volume();
   volume.mkdirSync(homeDir, { recursive: true });
@@ -344,8 +354,8 @@ describe("usage list command", () => {
     const tableOutput = logs.join("\n");
     expect(tableOutput).toContain("Claude-Sonnet-4.5");
     expect(tableOutput).toContain("gpt-5.2");
-    expect(tableOutput).toContain("2024-01-15 10:30");
-    expect(tableOutput).toContain("2024-01-15 09:15");
+    expect(tableOutput).toContain(formatLocalDate(1705314600000000));
+    expect(tableOutput).toContain(formatLocalDate(1705310100000000));
   });
 
   it("prompts 'Load more?' when API returns has_more=true", async () => {
@@ -716,9 +726,9 @@ describe("usage list table styling", () => {
 
     await program.parseAsync(["node", "cli", "usage", "list"]);
 
-    expect(headerFn).toHaveBeenCalledWith("Date");
+    expect(headerFn).toHaveBeenCalledWith(expect.stringContaining("Date ["));
     expect(headerFn).toHaveBeenCalledWith("Model");
-    expect(headerFn).toHaveBeenCalledWith("Cost");
+    expect(headerFn).toHaveBeenCalledWith("Cost (compute points)");
   });
 
   it("styles date values with theme.muted", async () => {
@@ -746,7 +756,7 @@ describe("usage list table styling", () => {
 
     await program.parseAsync(["node", "cli", "usage", "list"]);
 
-    expect(mutedFn).toHaveBeenCalledWith("2024-01-15 10:30");
+    expect(mutedFn).toHaveBeenCalledWith(formatLocalDate(1705314600000000));
   });
 
   it("styles model values with theme.accent", async () => {
