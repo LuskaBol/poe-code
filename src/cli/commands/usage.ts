@@ -3,8 +3,7 @@ import type { CliContainer } from "../container.js";
 import { createExecutionResources, resolveCommandFlags } from "./shared.js";
 import { loadCredentials } from "../../services/credentials.js";
 import { AuthenticationError, ApiError } from "../errors.js";
-import { Table } from "console-table-printer";
-import { confirm, isCancel, getTheme, widths, typography } from "@poe-code/design-system";
+import { confirm, isCancel, getTheme, widths, typography, renderTable } from "@poe-code/design-system";
 
 async function executeBalance(
   program: Command,
@@ -102,7 +101,7 @@ export function registerUsageCommand(
     .command("list")
     .description("Display usage history.")
     .option("--filter <model>", "Filter results by model name")
-    .option("--all", "Load all pages without prompting")
+    .option("--pages <count>", "Number of pages to load automatically", parseInt)
     .action(async function (this: Command) {
       const flags = resolveCommandFlags(program);
       const resources = createExecutionResources(
@@ -110,7 +109,7 @@ export function registerUsageCommand(
         flags,
         "usage:list"
       );
-      const commandOptions = this.opts<{ filter?: string; all?: boolean }>();
+      const commandOptions = this.opts<{ filter?: string; pages?: number }>();
 
       resources.logger.intro("usage list");
 
@@ -133,13 +132,47 @@ export function registerUsageCommand(
           return;
         }
 
-        const allEntries: Array<{
-          query_id: string;
+        const theme = getTheme();
+        const filterTerm = commandOptions.filter;
+        const dateWidth = 16;
+        const costWidth = 10;
+        const tableChrome = 10;
+        const modelMaxWidth = widths.maxLine - dateWidth - costWidth - tableChrome;
+        const tableColumns = [
+          { name: "Date", title: "Date", alignment: "left" as const, maxLen: dateWidth },
+          { name: "Model", title: "Model", alignment: "left" as const, maxLen: modelMaxWidth },
+          { name: "Cost", title: "Cost", alignment: "right" as const, maxLen: costWidth }
+        ];
+
+        const formatEntry = (entry: {
           creation_time: number;
           bot_name: string;
           cost_points: number;
-        }> = [];
+        }): Record<string, string> => {
+          const date = new Date(entry.creation_time / 1000);
+          const year = date.getUTCFullYear();
+          const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+          const day = String(date.getUTCDate()).padStart(2, "0");
+          const hours = String(date.getUTCHours()).padStart(2, "0");
+          const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+          const formatted = `${year}-${month}-${day} ${hours}:${minutes}`;
+          const modelName = entry.bot_name.length > modelMaxWidth
+            ? entry.bot_name.slice(0, modelMaxWidth - 1) + "\u2026"
+            : entry.bot_name;
+          return {
+            Date: theme.muted(formatted),
+            Model: theme.accent(modelName),
+            Cost: entry.cost_points < 0
+              ? theme.error(String(entry.cost_points))
+              : theme.success(String(entry.cost_points))
+          };
+        };
+
+        let totalFetched = 0;
+        let totalFiltered = 0;
         let startingAfter: string | undefined;
+        let pagesLoaded = 0;
+        const maxPages = commandOptions.pages;
 
         while (true) {
           let url = `${container.env.poeBaseUrl}/usage/points_history?limit=20`;
@@ -174,15 +207,33 @@ export function registerUsageCommand(
             }>;
           };
 
-          allEntries.push(...result.data);
+          pagesLoaded++;
+          totalFetched += result.data.length;
+
+          const pageEntries = filterTerm
+            ? result.data.filter((entry) =>
+                entry.bot_name.toLowerCase().includes(filterTerm.toLowerCase())
+              )
+            : result.data;
+
+          totalFiltered += pageEntries.length;
+
+          if (pageEntries.length > 0) {
+            const rows = pageEntries.map(formatEntry);
+            resources.logger.info(renderTable({ theme, columns: tableColumns, rows }));
+          }
 
           if (!result.has_more || result.data.length === 0) {
             break;
           }
 
+          if (maxPages !== undefined && pagesLoaded >= maxPages) {
+            break;
+          }
+
           startingAfter = result.data[result.data.length - 1].query_id;
 
-          if (!commandOptions.all) {
+          if (maxPages === undefined) {
             const shouldContinue = await confirm({ message: "Load more?" });
             if (isCancel(shouldContinue) || !shouldContinue) {
               break;
@@ -190,99 +241,17 @@ export function registerUsageCommand(
           }
         }
 
-        const filterTerm = commandOptions.filter;
-        const displayEntries = filterTerm
-          ? allEntries.filter((entry) =>
-              entry.bot_name.toLowerCase().includes(filterTerm.toLowerCase())
-            )
-          : allEntries;
-
-        if (allEntries.length === 0) {
+        if (totalFetched === 0) {
           resources.logger.info("No usage history found.");
-          return;
-        }
-
-        if (displayEntries.length === 0 && filterTerm) {
-          resources.logger.info(`No entries match "${filterTerm}".`);
-          return;
-        }
-
-        if (filterTerm) {
+        } else if (filterTerm && totalFiltered === 0) {
           resources.logger.info(
-            `Usage History (${displayEntries.length} of ${allEntries.length} entries match "${filterTerm}")`
+            `No entries match "${filterTerm}".`
           );
-        } else {
+        } else if (filterTerm && totalFiltered > 0) {
           resources.logger.info(
-            `Usage History (${allEntries.length} entries)`
+            `Showing entries matching "${filterTerm}".`
           );
         }
-
-        const theme = getTheme();
-
-        const dateWidth = 16;
-        const costWidth = 10;
-        const tableChrome = 10;
-        const modelMaxWidth = widths.maxLine - dateWidth - costWidth - tableChrome;
-
-        const table = new Table({
-          style: {
-            headerTop: {
-              left: theme.muted("┌"),
-              mid: theme.muted("┬"),
-              right: theme.muted("┐"),
-              other: theme.muted("─")
-            },
-            headerBottom: {
-              left: theme.muted("├"),
-              mid: theme.muted("┼"),
-              right: theme.muted("┤"),
-              other: theme.muted("─")
-            },
-            tableBottom: {
-              left: theme.muted("└"),
-              mid: theme.muted("┴"),
-              right: theme.muted("┘"),
-              other: theme.muted("─")
-            },
-            vertical: theme.muted("│"),
-            rowSeparator: {
-              left: theme.muted("├"),
-              mid: theme.muted("┼"),
-              right: theme.muted("┤"),
-              other: theme.muted("─")
-            }
-          },
-          columns: [
-            { name: "Date", title: theme.header("Date"), alignment: "left", maxLen: dateWidth },
-            { name: "Model", title: theme.header("Model"), alignment: "left", maxLen: modelMaxWidth },
-            { name: "Cost", title: theme.header("Cost"), alignment: "right", maxLen: costWidth }
-          ]
-        });
-
-        for (const entry of displayEntries) {
-          const date = new Date(entry.creation_time / 1000);
-          const year = date.getUTCFullYear();
-          const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-          const day = String(date.getUTCDate()).padStart(2, "0");
-          const hours = String(date.getUTCHours()).padStart(2, "0");
-          const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-          const formatted = `${year}-${month}-${day} ${hours}:${minutes}`;
-
-          const modelName = entry.bot_name.length > modelMaxWidth
-            ? entry.bot_name.slice(0, modelMaxWidth - 1) + "\u2026"
-            : entry.bot_name;
-
-          table.addRow({
-            Date: theme.muted(formatted),
-            Model: theme.accent(modelName),
-            Cost:
-              entry.cost_points < 0
-                ? theme.error(String(entry.cost_points))
-                : theme.success(String(entry.cost_points))
-          });
-        }
-
-        resources.logger.info(table.render());
       } catch (error) {
         if (error instanceof Error) {
           resources.logger.logException(error, "usage list", {

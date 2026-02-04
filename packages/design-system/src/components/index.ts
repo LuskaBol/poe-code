@@ -6,3 +6,5 @@ export { helpFormatter, formatCommand, formatUsage, formatOption, formatCommandL
 export type { CommandInfo, OptionInfo } from "./help-formatter.js";
 export { formatCommandNotFound } from "./command-errors.js";
 export { formatCommandNotFoundPanel } from "./command-errors.js";
+export { renderTable } from "./table.js";
+export type { TableColumn, RenderTableOptions } from "./table.js";

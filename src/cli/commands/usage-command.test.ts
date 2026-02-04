@@ -341,10 +341,6 @@ describe("usage list command", () => {
       })
     );
 
-    expect(
-      logs.some((message) => message.includes("Usage History (2 entries)"))
-    ).toBe(true);
-
     const tableOutput = logs.join("\n");
     expect(tableOutput).toContain("Claude-Sonnet-4.5");
     expect(tableOutput).toContain("gpt-5.2");
@@ -438,7 +434,7 @@ describe("usage list command", () => {
     expect(confirmMock).toHaveBeenCalledTimes(1);
   });
 
-  it("loads all pages without prompting when --all is passed", async () => {
+  it("loads specified number of pages without prompting when --pages is passed", async () => {
     fs = createCredentialsVolume("test-key");
     const page1Entries = [
       { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
@@ -471,7 +467,7 @@ describe("usage list command", () => {
     const optsSpy = vi.spyOn(program, "optsWithGlobals");
     optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
 
-    await program.parseAsync(["node", "cli", "usage", "list", "--all"]);
+    await program.parseAsync(["node", "cli", "usage", "list", "--pages", "3"]);
 
     expect(confirmMock).not.toHaveBeenCalled();
     expect(httpClient).toHaveBeenCalledTimes(2);
@@ -480,7 +476,39 @@ describe("usage list command", () => {
     expect(output).toContain("Claude-Sonnet-4.5");
     expect(output).toContain("gpt-5.2");
     expect(output).toContain("Claude-Opus");
-    expect(logs.some((m) => m.includes("Usage History (3 entries)"))).toBe(true);
+  });
+
+  it("stops after reaching --pages limit", async () => {
+    fs = createCredentialsVolume("test-key");
+    const page1Entries = [
+      { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+      { query_id: "entry-2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 }
+    ];
+
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: true, data: page1Entries })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--pages", "1"]);
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(httpClient).toHaveBeenCalledTimes(1);
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).toContain("gpt-5.2");
   });
 
   it("filters results client-side when --filter provided", async () => {
@@ -513,7 +541,7 @@ describe("usage list command", () => {
     expect(output).toContain("Claude-Sonnet-4.5");
     expect(output).toContain("Claude-Opus");
     expect(output).not.toContain("gpt-5.2");
-    expect(logs.some((m) => m.includes('Usage History (2 of 3 entries match "claude")'))).toBe(true);
+    expect(logs.some((m) => m.includes('Showing entries matching "claude".'))).toBe(true);
   });
 
   it("filters case-insensitively on model name", async () => {
@@ -644,7 +672,7 @@ describe("usage list command", () => {
     expect(output).toContain("Claude-Sonnet-4.5");
     expect(output).toContain("Claude-Opus");
     expect(output).not.toContain("gpt-5.2");
-    expect(logs.some((m) => m.includes('Usage History (2 of 4 entries match "claude")'))).toBe(true);
+    expect(logs.some((m) => m.includes('Showing entries matching "claude".'))).toBe(true);
     expect(httpClient).toHaveBeenCalledTimes(2);
   });
 });
