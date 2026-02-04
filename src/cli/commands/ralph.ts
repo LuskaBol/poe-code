@@ -489,6 +489,14 @@ export function registerRalphCommand(
           ? { enabled: true, name: options.worktreeName?.trim() || undefined }
           : undefined;
 
+        const cwd = container.env.cwd;
+
+        resources.logger.info(`Plan:       ${planPath}`);
+        resources.logger.info(`Agent:      ${agent}`);
+        resources.logger.info(`Iterations: ${maxIterations}`);
+        if (noCommit) resources.logger.info("No-commit:  true");
+        if (worktree) resources.logger.info(`Worktree:   ${worktree.name ?? "(auto)"}`);
+
         await ralphBuild({
           planPath,
           progressPath: config.progressPath,
@@ -501,7 +509,7 @@ export function registerRalphCommand(
           agent,
           noCommit,
           staleSeconds,
-          cwd: container.env.cwd,
+          cwd,
           worktree
         });
 
