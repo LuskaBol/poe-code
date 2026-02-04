@@ -83,7 +83,7 @@
         "event": "tool_start",
         "id": "tu_1",
         "kind": "exec",
-        "title": "Bash",
+        "title": "ls -la",
         "input": {
           "command": "ls -la"
         }
@@ -97,7 +97,7 @@
         "event": "tool_start",
         "id": "tu_2",
         "kind": "edit",
-        "title": "Edit",
+        "title": "src/config.ts",
         "input": {
           "file_path": "src/config.ts",
           "old_string": "port: 3000",

@@ -43,6 +43,31 @@ type ClaudeContentBlock = {
   content?: unknown;
 };
 
+const TITLE_KEYS: Record<string, string[]> = {
+  Bash: ["command"],
+  Read: ["file_path"],
+  Write: ["file_path"],
+  Edit: ["file_path"],
+  NotebookEdit: ["notebook_path"],
+  Glob: ["pattern"],
+  Grep: ["pattern"],
+  Task: ["description", "prompt"]
+};
+
+function extractTitle(name: string, input: unknown): string {
+  const keys = TITLE_KEYS[name];
+  if (keys && input && typeof input === "object") {
+    const obj = input as Record<string, unknown>;
+    for (const key of keys) {
+      const value = obj[key];
+      if (typeof value === "string" && value.length > 0) {
+        return truncate(value, 80);
+      }
+    }
+  }
+  return name;
+}
+
 export async function* adaptClaude(
   lines: AsyncIterable<string>
 ): AsyncGenerator<AcpEvent> {
@@ -148,7 +173,7 @@ export async function* adaptClaude(
             event: "tool_start",
             id: item.id,
             kind,
-            title: item.name,
+            title: extractTitle(item.name, item.input),
             input: item.input
           };
         }
