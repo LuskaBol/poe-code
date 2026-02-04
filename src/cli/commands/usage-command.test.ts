@@ -1,0 +1,794 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { Volume, createFsFromVolume } from "memfs";
+import { createProgram } from "../program.js";
+import type { FileSystem } from "../utils/file-system.js";
+import type { HttpClient } from "../http.js";
+
+const confirmMock = vi.hoisted(() => vi.fn());
+const isCancelMock = vi.hoisted(() => vi.fn().mockReturnValue(false));
+const getThemeMock = vi.hoisted(() => vi.fn());
+const typographyMock = vi.hoisted(() => ({
+  bold: vi.fn((t: string) => t),
+  dim: vi.fn((t: string) => t),
+  italic: vi.fn((t: string) => t),
+  underline: vi.fn((t: string) => t),
+  strikethrough: vi.fn((t: string) => t)
+}));
+
+function createIdentityTheme() {
+  return {
+    header: (t: string) => t,
+    divider: (t: string) => t,
+    prompt: (t: string) => t,
+    number: (t: string) => t,
+    intro: (t: string) => t,
+    resolvedSymbol: "◇",
+    errorSymbol: "■",
+    accent: (t: string) => t,
+    muted: (t: string) => t,
+    success: (t: string) => t,
+    warning: (t: string) => t,
+    error: (t: string) => t,
+    info: (t: string) => t
+  };
+}
+
+vi.mock("@poe-code/design-system", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@poe-code/design-system")>();
+  return {
+    ...actual,
+    confirm: confirmMock,
+    isCancel: isCancelMock,
+    getTheme: getThemeMock,
+    typography: typographyMock
+  };
+});
+
+const cwd = "/repo";
+const homeDir = "/home/test";
+const credentialsPath = `${homeDir}/.poe-code/credentials.json`;
+
+function createMemfs(homeDir: string): FileSystem {
+  const volume = new Volume();
+  volume.mkdirSync(homeDir, { recursive: true });
+  return createFsFromVolume(volume).promises as unknown as FileSystem;
+}
+
+function createCredentialsVolume(apiKey: string): FileSystem {
+  const volume = new Volume();
+  volume.mkdirSync(`${homeDir}/.poe-code`, { recursive: true });
+  volume.writeFileSync(
+    credentialsPath,
+    JSON.stringify({ apiKey })
+  );
+  return createFsFromVolume(volume).promises as unknown as FileSystem;
+}
+
+describe("usage balance command", () => {
+  let fs: FileSystem;
+  let logs: string[];
+  let httpClient: HttpClient;
+
+  beforeEach(() => {
+    fs = createMemfs(homeDir);
+    logs = [];
+    httpClient = vi.fn();
+    getThemeMock.mockReset().mockReturnValue(createIdentityTheme());
+  });
+
+  it("fetches and displays current balance", async () => {
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ monthly_available_balance: 1500 })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "balance"]);
+
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining("/usage/current_balance"),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-key"
+        })
+      })
+    );
+    expect(
+      logs.some((message) => message.includes("Current balance: 1,500 points"))
+    ).toBe(true);
+  });
+
+  it("throws error when no API key configured", async () => {
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await expect(
+      program.parseAsync(["node", "cli", "usage", "balance"])
+    ).rejects.toThrow();
+
+    expect(httpClient).not.toHaveBeenCalled();
+  });
+
+  it("logs dry run message when --dry-run flag is set", async () => {
+    fs = createCredentialsVolume("test-key");
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message),
+      exitOverride: true
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: true } as any);
+
+    await program.parseAsync([
+      "node",
+      "cli",
+      "--dry-run",
+      "usage",
+      "balance"
+    ]);
+
+    expect(httpClient).not.toHaveBeenCalled();
+    expect(
+      logs.some((message) => message.includes("Dry run"))
+    ).toBe(true);
+  });
+});
+
+describe("usage balance styling", () => {
+  let fs: FileSystem;
+  let logs: string[];
+  let httpClient: HttpClient;
+
+  beforeEach(() => {
+    fs = createMemfs(homeDir);
+    logs = [];
+    httpClient = vi.fn();
+    getThemeMock.mockReset().mockReturnValue(createIdentityTheme());
+    typographyMock.bold.mockReset().mockImplementation((t: string) => t);
+  });
+
+  it("styles balance value with theme.accent", async () => {
+    const accentFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), accent: accentFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ monthly_available_balance: 1500 })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "balance"]);
+
+    expect(accentFn).toHaveBeenCalledWith("1,500");
+  });
+
+  it("applies bold to the balance value", async () => {
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ monthly_available_balance: 2500 })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "balance"]);
+
+    expect(typographyMock.bold).toHaveBeenCalledWith("2,500");
+  });
+
+  it("uses logger.info for the balance line", async () => {
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ monthly_available_balance: 750 })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "balance"]);
+
+    expect(logs.some((m) => m.includes("Current balance:"))).toBe(true);
+    expect(logs.some((m) => m.includes("750"))).toBe(true);
+    expect(logs.some((m) => m.includes("points"))).toBe(true);
+  });
+});
+
+describe("usage list command", () => {
+  let fs: FileSystem;
+  let logs: string[];
+  let httpClient: HttpClient;
+
+  beforeEach(() => {
+    fs = createMemfs(homeDir);
+    logs = [];
+    httpClient = vi.fn();
+    confirmMock.mockReset();
+    isCancelMock.mockReset().mockReturnValue(false);
+    getThemeMock.mockReset().mockReturnValue(createIdentityTheme());
+  });
+
+  it("fetches and displays usage history from GET /usage/points_history with limit=20", async () => {
+    fs = createCredentialsVolume("test-key");
+    const entries = [
+      {
+        timestamp: "2024-01-15T10:30:00Z",
+        model: "Claude-Sonnet-4.5",
+        cost: -50
+      },
+      {
+        timestamp: "2024-01-15T09:15:00Z",
+        model: "gpt-5.2",
+        cost: -30
+      }
+    ];
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        length: 2,
+        data: entries
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining("/usage/points_history?limit=20"),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-key"
+        })
+      })
+    );
+
+    expect(
+      logs.some((message) => message.includes("Usage History (2 entries)"))
+    ).toBe(true);
+
+    const tableOutput = logs.join("\n");
+    expect(tableOutput).toContain("Claude-Sonnet-4.5");
+    expect(tableOutput).toContain("gpt-5.2");
+    expect(tableOutput).toContain("2024-01-15 10:30");
+    expect(tableOutput).toContain("2024-01-15 09:15");
+  });
+
+  it("prompts 'Load more?' when API returns has_more=true", async () => {
+    fs = createCredentialsVolume("test-key");
+    const page1Entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+    ];
+    const page2Entries = [
+      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 }
+    ];
+
+    (httpClient as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: true, length: 2, data: page1Entries })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: false, length: 1, data: page2Entries })
+      });
+
+    confirmMock.mockResolvedValueOnce(true);
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(confirmMock).toHaveBeenCalledWith({ message: "Load more?" });
+
+    expect(httpClient).toHaveBeenCalledTimes(2);
+    expect(httpClient).toHaveBeenLastCalledWith(
+      expect.stringContaining("starting_after=entry-2"),
+      expect.any(Object)
+    );
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).toContain("gpt-5.2");
+    expect(output).toContain("Claude-Opus");
+  });
+
+  it("stops pagination when user declines", async () => {
+    fs = createCredentialsVolume("test-key");
+
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: true,
+        length: 2,
+        data: [
+          { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+          { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+        ]
+      })
+    });
+
+    confirmMock.mockResolvedValueOnce(false);
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(httpClient).toHaveBeenCalledTimes(1);
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("filters results client-side when --filter provided", async () => {
+    fs = createCredentialsVolume("test-key");
+    const entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 },
+      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 }
+    ];
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: false, data: entries })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--filter", "claude"]);
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).toContain("Claude-Opus");
+    expect(output).not.toContain("gpt-5.2");
+    expect(logs.some((m) => m.includes('Usage History (2 of 3 entries match "claude")'))).toBe(true);
+  });
+
+  it("filters case-insensitively on model name", async () => {
+    fs = createCredentialsVolume("test-key");
+    const entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+    ];
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: false, data: entries })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--filter", "CLAUDE"]);
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).not.toContain("gpt-5.2");
+  });
+
+  it("shows 'No usage history found.' when API returns empty data array", async () => {
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: false, data: [] })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(logs.some((m) => m.includes("No usage history found."))).toBe(true);
+    expect(logs.join("\n")).not.toContain("┌");
+    expect(logs.join("\n")).not.toContain("Date");
+  });
+
+  it("shows 'No entries match \"xyz\".' when filter matches nothing", async () => {
+    fs = createCredentialsVolume("test-key");
+    const entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+    ];
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: false, data: entries })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--filter", "xyz"]);
+
+    expect(logs.some((m) => m.includes('No entries match "xyz".'))).toBe(true);
+    expect(logs.join("\n")).not.toContain("┌");
+    expect(logs.join("\n")).not.toContain("Date");
+  });
+
+  it("pagination works with filter applied", async () => {
+    fs = createCredentialsVolume("test-key");
+    const page1Entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+    ];
+    const page2Entries = [
+      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 },
+      { id: "entry-4", timestamp: "2024-01-14T13:00:00Z", model: "gpt-5.2", cost: -20 }
+    ];
+
+    (httpClient as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: true, data: page1Entries })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: false, data: page2Entries })
+      });
+
+    confirmMock.mockResolvedValueOnce(true);
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--filter", "claude"]);
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).toContain("Claude-Opus");
+    expect(output).not.toContain("gpt-5.2");
+    expect(logs.some((m) => m.includes('Usage History (2 of 4 entries match "claude")'))).toBe(true);
+    expect(httpClient).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("usage list table styling", () => {
+  let fs: FileSystem;
+  let logs: string[];
+  let httpClient: HttpClient;
+
+  beforeEach(() => {
+    fs = createMemfs(homeDir);
+    logs = [];
+    httpClient = vi.fn();
+    confirmMock.mockReset();
+    isCancelMock.mockReset().mockReturnValue(false);
+    getThemeMock.mockReset().mockReturnValue(createIdentityTheme());
+  });
+
+  it("styles column headers with theme.header", async () => {
+    const headerFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), header: headerFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(headerFn).toHaveBeenCalledWith("Date");
+    expect(headerFn).toHaveBeenCalledWith("Model");
+    expect(headerFn).toHaveBeenCalledWith("Cost");
+  });
+
+  it("styles date values with theme.muted", async () => {
+    const mutedFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), muted: mutedFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(mutedFn).toHaveBeenCalledWith("2024-01-15 10:30");
+  });
+
+  it("styles model values with theme.accent", async () => {
+    const accentFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), accent: accentFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [
+          { timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+          { timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+        ]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(accentFn).toHaveBeenCalledWith("Claude-Sonnet-4.5");
+    expect(accentFn).toHaveBeenCalledWith("gpt-5.2");
+  });
+
+  it("color-codes negative costs with theme.error", async () => {
+    const errorFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), error: errorFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(errorFn).toHaveBeenCalledWith("-50");
+  });
+
+  it("color-codes zero and positive costs with theme.success", async () => {
+    const successFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), success: successFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [
+          { timestamp: "2024-01-15T10:30:00Z", model: "model-a", cost: 0 },
+          { timestamp: "2024-01-15T09:15:00Z", model: "model-b", cost: 10 }
+        ]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(successFn).toHaveBeenCalledWith("0");
+    expect(successFn).toHaveBeenCalledWith("10");
+  });
+
+  it("truncates long model names with '…' suffix", async () => {
+    fs = createCredentialsVolume("test-key");
+    const longModelName = "A".repeat(60);
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: longModelName, cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    const output = logs.join("\n");
+    expect(output).not.toContain(longModelName);
+    expect(output).toContain("…");
+  });
+
+  it("styles table borders with theme.muted", async () => {
+    const mutedFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), muted: mutedFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: false,
+        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+      })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(mutedFn).toHaveBeenCalledWith("┌");
+    expect(mutedFn).toHaveBeenCalledWith("─");
+    expect(mutedFn).toHaveBeenCalledWith("│");
+    expect(mutedFn).toHaveBeenCalledWith("└");
+  });
+});

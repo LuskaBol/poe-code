@@ -17,6 +17,7 @@ import { registerMcpCommand } from "./commands/mcp.js";
 import { registerSkillCommand } from "./commands/skill.js";
 import { registerVersionOption } from "./commands/version.js";
 import { registerRalphCommand } from "./commands/ralph.js";
+import { registerUsageCommand } from "./commands/usage.js";
 import packageJson from "../../package.json" with { type: "json" };
 import { throwCommandNotFound } from "./command-not-found.js";
 import {
@@ -278,6 +279,7 @@ function bootstrapProgram(container: CliContainer): Command {
   registerMcpCommand(program, container);
   registerSkillCommand(program, container);
   registerRalphCommand(program, container);
+  registerUsageCommand(program, container);
 
   program.action(function (this: Command) {
     const args = this.args;
