@@ -18,6 +18,7 @@ import { registerSkillCommand } from "./commands/skill.js";
 import { registerVersionOption } from "./commands/version.js";
 import { registerRalphCommand } from "./commands/ralph.js";
 import { registerUsageCommand } from "./commands/usage.js";
+import { registerModelsCommand } from "./commands/models.js";
 import packageJson from "../../package.json" with { type: "json" };
 import { throwCommandNotFound } from "./command-not-found.js";
 import {
@@ -290,6 +291,7 @@ function bootstrapProgram(container: CliContainer): Command {
   registerSkillCommand(program, container);
   registerRalphCommand(program, container);
   registerUsageCommand(program, container);
+  registerModelsCommand(program, container);
 
   program.action(function (this: Command) {
     const args = this.args;
