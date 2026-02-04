@@ -11,6 +11,7 @@ import { isCancel, select as clackSelect } from "@poe-code/design-system";
 import { isNotFound } from "@poe-code/config-mutations";
 import {
   createWorktree,
+  readRegistry,
   updateWorktreeStatus as updateWorktreeRegistryStatus,
   type WorktreeDeps
 } from "@poe-code/worktree";
@@ -389,58 +390,76 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     };
 
     worktreeName = options.worktree.name ?? deriveWorktreeName(options.planPath);
-    const baseBranch = (git.getCurrentBranch ?? getCurrentBranch)(cwd);
 
-    const entry = await createWorktree({
-      cwd,
-      name: worktreeName,
-      baseBranch,
-      source: "ralph-build",
-      agent: options.agent,
-      planPath: options.planPath,
-      deps: worktreeDeps
-    });
+    // Check registry for an existing worktree to resume
+    const registry = await readRegistry(cwd, worktreeDeps.fs);
+    const existing = registry.worktrees.find((w) => w.name === worktreeName);
+    const isResume = !!existing && (existing.status === "failed" || existing.status === "active");
 
-    worktreeBranch = entry.branch;
-    const worktreePath = entry.path;
+    if (isResume) {
+      // Resume: reuse existing worktree and its plan state
+      worktreeBranch = existing.branch;
+      cwd = existing.path;
+      planPath = absPath(existing.path, options.planPath);
 
-    // Symlink gitignored directories from original cwd into the worktree
-    const symlinkFn = fs.symlink ?? ((target: string, path: string) => fsPromises.symlink(target, path));
-    const exec = worktreeDeps.exec;
-    const dirsToLink = [".poe-code-ralph", ".agents/poe-code-ralph"];
-    for (const dir of dirsToLink) {
-      try {
-        await exec(`git check-ignore -q ${dir}`, { cwd: originalCwd });
-      } catch {
-        continue; // not gitignored, already in worktree checkout
+      await updateWorktreeRegistryStatus(originalCwd, worktreeName, "active", {
+        fs: worktreeDeps.fs
+      });
+    } else {
+      // Fresh start: create new worktree
+      const baseBranch = (git.getCurrentBranch ?? getCurrentBranch)(cwd);
+
+      const entry = await createWorktree({
+        cwd,
+        name: worktreeName,
+        baseBranch,
+        source: "ralph-build",
+        agent: options.agent,
+        planPath: options.planPath,
+        deps: worktreeDeps
+      });
+
+      worktreeBranch = entry.branch;
+      const worktreePath = entry.path;
+
+      // Symlink gitignored directories from original cwd into the worktree
+      const symlinkFn = fs.symlink ?? ((target: string, path: string) => fsPromises.symlink(target, path));
+      const exec = worktreeDeps.exec;
+      const dirsToLink = [".poe-code-ralph", ".agents/poe-code-ralph"];
+      for (const dir of dirsToLink) {
+        try {
+          await exec(`git check-ignore -q ${dir}`, { cwd: originalCwd });
+        } catch {
+          continue; // not gitignored, already in worktree checkout
+        }
+        const src = absPath(originalCwd, dir);
+        const dest = absPath(worktreePath, dir);
+        await fs.mkdir(dirname(dest), { recursive: true });
+        try { await symlinkFn(src, dest); } catch { /* already exists */ }
       }
-      const src = absPath(originalCwd, dir);
-      const dest = absPath(worktreePath, dir);
-      await fs.mkdir(dirname(dest), { recursive: true });
-      try { await symlinkFn(src, dest); } catch { /* already exists */ }
+
+      // Copy the plan file into the worktree and reset all stories to open
+      const destPlanPath = absPath(worktreePath, options.planPath);
+      await fs.mkdir(dirname(destPlanPath), { recursive: true });
+      await copyFile(planPath, destPlanPath);
+
+      const copiedRaw = await fs.readFile(destPlanPath, "utf8");
+      const copiedPlan = parsePlan(copiedRaw);
+      for (const story of copiedPlan.stories) {
+        story.status = "open";
+        story.startedAt = undefined;
+        story.completedAt = undefined;
+        story.updatedAt = undefined;
+      }
+      await writePlan(destPlanPath, copiedPlan, {
+        fs,
+        lock: async () => async () => {}
+      });
+
+      // Switch cwd and planPath to the worktree
+      cwd = worktreePath;
+      planPath = destPlanPath;
     }
-
-    // Copy the plan file into the worktree and reset all stories to open
-    const destPlanPath = absPath(worktreePath, options.planPath);
-    await fs.mkdir(dirname(destPlanPath), { recursive: true });
-    await copyFile(planPath, destPlanPath);
-
-    const copiedRaw = await fs.readFile(destPlanPath, "utf8");
-    const copiedPlan = parsePlan(copiedRaw);
-    for (const story of copiedPlan.stories) {
-      story.status = "open";
-      story.startedAt = undefined;
-      story.completedAt = undefined;
-      story.updatedAt = undefined;
-    }
-    await writePlan(destPlanPath, copiedPlan, {
-      fs,
-      lock: async () => async () => {}
-    });
-
-    // Switch cwd and planPath to the worktree
-    cwd = worktreePath;
-    planPath = destPlanPath;
   }
 
   const progressPath = absPath(cwd, options.progressPath ?? ".poe-code-ralph/progress.md");

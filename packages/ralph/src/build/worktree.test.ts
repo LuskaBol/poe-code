@@ -511,6 +511,227 @@ describe("buildLoop with worktree", () => {
     expect(finalPlan.stories[1]?.status).toBe("done");
   });
 
+  it("resumes a failed worktree run instead of starting fresh", async () => {
+    // Plan with US-001 done and US-002 open (simulating a partial run)
+    const partialPlanYaml = stringify({
+      version: 1,
+      project: "Test",
+      goals: [],
+      nonGoals: [],
+      qualityGates: ["npm run test"],
+      stories: [
+        {
+          id: "US-001",
+          title: "First story",
+          status: "done",
+          dependsOn: [],
+          description: "Already completed.",
+          acceptanceCriteria: ["Criterion A"],
+          startedAt: "2026-01-01T00:00:00.000Z",
+          completedAt: "2026-01-01T01:00:00.000Z",
+          updatedAt: "2026-01-01T01:00:00.000Z"
+        },
+        {
+          id: "US-002",
+          title: "Second story",
+          status: "open",
+          dependsOn: ["US-001"],
+          description: "Still needs work.",
+          acceptanceCriteria: ["Criterion B"]
+        }
+      ]
+    });
+
+    // Set up: original cwd has the plan (all done in original), worktree has partial plan
+    const originalPlanYaml = stringify({
+      version: 1,
+      project: "Test",
+      goals: [],
+      nonGoals: [],
+      qualityGates: ["npm run test"],
+      stories: [
+        {
+          id: "US-001",
+          title: "First story",
+          status: "done",
+          dependsOn: [],
+          description: "Already completed.",
+          acceptanceCriteria: ["Criterion A"]
+        },
+        {
+          id: "US-002",
+          title: "Second story",
+          status: "done",
+          dependsOn: ["US-001"],
+          description: "Still needs work.",
+          acceptanceCriteria: ["Criterion B"]
+        }
+      ]
+    });
+
+    const fs = createMemFs({
+      // Original cwd files
+      "/.agents/poe-code-ralph/PROMPT_build.md": PROMPT_TEMPLATE,
+      "/.poe-code-ralph/errors.log": "",
+      "/.agents/tasks/plan-resume.yaml": originalPlanYaml,
+      // Existing worktree files (from previous failed run)
+      "/.poe-code-worktrees/plan-resume/.agents/tasks/plan-resume.yaml": partialPlanYaml,
+      // Registry showing a failed worktree
+      "/.poe-code-worktrees/worktrees.yaml": stringify({
+        worktrees: [
+          {
+            name: "plan-resume",
+            path: "/.poe-code-worktrees/plan-resume",
+            branch: "poe-code/plan-resume",
+            baseBranch: "main",
+            createdAt: "2026-02-01T00:00:00.000Z",
+            source: "ralph-build",
+            agent: "codex",
+            status: "failed",
+            planPath: ".agents/tasks/plan-resume.yaml"
+          }
+        ]
+      })
+    });
+
+    // The worktree already has symlinks from previous run - simulate them
+    await fs.mkdir("/.poe-code-worktrees/plan-resume/.poe-code-ralph", { recursive: true });
+    await fs.symlink(
+      "/.agents/poe-code-ralph",
+      "/.poe-code-worktrees/plan-resume/.agents/poe-code-ralph"
+    );
+
+    const { deps: worktreeDeps, execCalls } = createWorktreeDeps(fs);
+    const runId = "test-run-resume";
+
+    const spawn = vi.fn(async () => ({
+      stdout: "<promise>COMPLETE</promise>",
+      stderr: "",
+      exitCode: 0
+    }));
+
+    const result = await buildLoop({
+      planPath: ".agents/tasks/plan-resume.yaml",
+      maxIterations: 5,
+      noCommit: true,
+      agent: "codex",
+      staleSeconds: 0,
+      cwd: "/",
+      worktree: { enabled: true },
+      deps: {
+        fs,
+        lock: noLock,
+        runId,
+        spawn,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        worktree: worktreeDeps,
+        git: {
+          getHead: () => null,
+          getCommitList: () => [],
+          getChangedFiles: () => [],
+          getDirtyFiles: () => [],
+          getCurrentBranch: () => "main"
+        },
+        now: () => new Date("2026-02-02T06:00:00.000Z")
+      }
+    });
+
+    // Should NOT have called git worktree add (no fresh creation)
+    const createCmd = execCalls.find((c) => c.command.includes("git worktree add"));
+    expect(createCmd).toBeUndefined();
+
+    // Only US-002 should have been processed (US-001 was already done)
+    expect(result.storiesDone).toEqual(["US-002"]);
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    // Worktree branch is still set
+    expect(result.worktreeBranch).toBe("poe-code/plan-resume");
+  });
+
+  it("starts fresh when previous worktree has status done", async () => {
+    const allDonePlanYaml = stringify({
+      version: 1,
+      project: "Test",
+      goals: [],
+      nonGoals: [],
+      qualityGates: ["npm run test"],
+      stories: [
+        {
+          id: "US-001",
+          title: "Do the thing",
+          status: "done",
+          dependsOn: [],
+          description: "As a user, I want a thing.",
+          acceptanceCriteria: ["Criterion A"]
+        }
+      ]
+    });
+
+    const fs = createMemFs({
+      "/.agents/poe-code-ralph/PROMPT_build.md": PROMPT_TEMPLATE,
+      "/.poe-code-ralph/errors.log": "",
+      "/.agents/tasks/plan-build-worktree.yaml": allDonePlanYaml,
+      // Registry showing a completed worktree
+      "/.poe-code-worktrees/worktrees.yaml": stringify({
+        worktrees: [
+          {
+            name: "plan-build-worktree",
+            path: "/.poe-code-worktrees/plan-build-worktree",
+            branch: "poe-code/plan-build-worktree",
+            baseBranch: "main",
+            createdAt: "2026-02-01T00:00:00.000Z",
+            source: "ralph-build",
+            agent: "codex",
+            status: "done"
+          }
+        ]
+      })
+    });
+    const { deps: worktreeDeps, execCalls } = createWorktreeDeps(fs);
+    const runId = "test-run-fresh-after-done";
+
+    const spawn = vi.fn(async () => ({
+      stdout: "<promise>COMPLETE</promise>",
+      stderr: "",
+      exitCode: 0
+    }));
+
+    const result = await buildLoop({
+      planPath: ".agents/tasks/plan-build-worktree.yaml",
+      maxIterations: 3,
+      noCommit: true,
+      agent: "codex",
+      staleSeconds: 0,
+      cwd: "/",
+      worktree: { enabled: true },
+      deps: {
+        fs,
+        lock: noLock,
+        runId,
+        spawn,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        worktree: worktreeDeps,
+        git: {
+          getHead: () => null,
+          getCommitList: () => [],
+          getChangedFiles: () => [],
+          getDirtyFiles: () => [],
+          getCurrentBranch: () => "main"
+        },
+        now: () => new Date("2026-02-02T06:00:00.000Z")
+      }
+    });
+
+    // SHOULD have created a fresh worktree (status was done → start over)
+    const createCmd = execCalls.find((c) => c.command.includes("git worktree add"));
+    expect(createCmd).toBeDefined();
+
+    // Story should have been reset and re-done
+    expect(result.storiesDone).toEqual(["US-001"]);
+  });
+
   it("does not create worktree when worktree option is not set", async () => {
     const fs = createMemFs({
       "/.agents/poe-code-ralph/PROMPT_build.md": "ID: {{STORY_ID}}\n{{STORY_BLOCK}}\n",
