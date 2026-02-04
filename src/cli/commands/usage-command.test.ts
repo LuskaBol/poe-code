@@ -4,6 +4,18 @@ import { createProgram } from "../program.js";
 import type { FileSystem } from "../utils/file-system.js";
 import type { HttpClient } from "../http.js";
 
+const confirmMock = vi.hoisted(() => vi.fn());
+const isCancelMock = vi.hoisted(() => vi.fn().mockReturnValue(false));
+
+vi.mock("@poe-code/design-system", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@poe-code/design-system")>();
+  return {
+    ...actual,
+    confirm: confirmMock,
+    isCancel: isCancelMock
+  };
+});
+
 const cwd = "/repo";
 const homeDir = "/home/test";
 const credentialsPath = `${homeDir}/.poe-code/credentials.json`;
@@ -128,6 +140,8 @@ describe("usage list command", () => {
     fs = createMemfs(homeDir);
     logs = [];
     httpClient = vi.fn();
+    confirmMock.mockReset();
+    isCancelMock.mockReset().mockReturnValue(false);
   });
 
   it("fetches and displays usage history from GET /usage/points_history with limit=20", async () => {
@@ -186,5 +200,91 @@ describe("usage list command", () => {
     expect(tableOutput).toContain("gpt-5.2");
     expect(tableOutput).toContain("2024-01-15 10:30");
     expect(tableOutput).toContain("2024-01-15 09:15");
+  });
+
+  it("prompts 'Load more?' when API returns has_more=true", async () => {
+    fs = createCredentialsVolume("test-key");
+    const page1Entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+    ];
+    const page2Entries = [
+      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 }
+    ];
+
+    (httpClient as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: true, length: 2, data: page1Entries })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: false, length: 1, data: page2Entries })
+      });
+
+    confirmMock.mockResolvedValueOnce(true);
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(confirmMock).toHaveBeenCalledWith({ message: "Load more?" });
+
+    expect(httpClient).toHaveBeenCalledTimes(2);
+    expect(httpClient).toHaveBeenLastCalledWith(
+      expect.stringContaining("starting_after=entry-2"),
+      expect.any(Object)
+    );
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).toContain("gpt-5.2");
+    expect(output).toContain("Claude-Opus");
+  });
+
+  it("stops pagination when user declines", async () => {
+    fs = createCredentialsVolume("test-key");
+
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        has_more: true,
+        length: 2,
+        data: [
+          { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+          { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+        ]
+      })
+    });
+
+    confirmMock.mockResolvedValueOnce(false);
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(httpClient).toHaveBeenCalledTimes(1);
+    expect(confirmMock).toHaveBeenCalledTimes(1);
   });
 });

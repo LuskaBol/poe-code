@@ -4,6 +4,7 @@ import { createExecutionResources, resolveCommandFlags } from "./shared.js";
 import { loadCredentials } from "../../services/credentials.js";
 import { AuthenticationError, ApiError } from "../errors.js";
 import { Table } from "console-table-printer";
+import { confirm, isCancel } from "@poe-code/design-system";
 
 export function registerUsageCommand(
   program: Command,
@@ -115,38 +116,63 @@ export function registerUsageCommand(
           return;
         }
 
-        const response = await container.httpClient(
-          `${container.env.poeApiBaseUrl}/usage/points_history?limit=20`,
-          {
+        const allEntries: Array<{
+          id: string;
+          timestamp: string;
+          model: string;
+          cost: number;
+        }> = [];
+        let startingAfter: string | undefined;
+
+        while (true) {
+          let url = `${container.env.poeApiBaseUrl}/usage/points_history?limit=20`;
+          if (startingAfter) {
+            url += `&starting_after=${startingAfter}`;
+          }
+
+          const response = await container.httpClient(url, {
             method: "GET",
             headers: {
               Authorization: `Bearer ${apiKey}`
             }
-          }
-        );
+          });
 
-        if (!response.ok) {
-          throw new ApiError(
-            `Failed to fetch usage history (HTTP ${response.status})`,
-            {
-              httpStatus: response.status,
-              endpoint: "/usage/points_history"
-            }
-          );
+          if (!response.ok) {
+            throw new ApiError(
+              `Failed to fetch usage history (HTTP ${response.status})`,
+              {
+                httpStatus: response.status,
+                endpoint: "/usage/points_history"
+              }
+            );
+          }
+
+          const result = (await response.json()) as {
+            has_more: boolean;
+            data: Array<{
+              id: string;
+              timestamp: string;
+              model: string;
+              cost: number;
+            }>;
+          };
+
+          allEntries.push(...result.data);
+
+          if (!result.has_more || result.data.length === 0) {
+            break;
+          }
+
+          startingAfter = result.data[result.data.length - 1].id;
+
+          const shouldContinue = await confirm({ message: "Load more?" });
+          if (isCancel(shouldContinue) || !shouldContinue) {
+            break;
+          }
         }
 
-        const result = (await response.json()) as {
-          has_more: boolean;
-          length: number;
-          data: Array<{
-            timestamp: string;
-            model: string;
-            cost: number;
-          }>;
-        };
-
         resources.logger.info(
-          `Usage History (${result.data.length} entries)`
+          `Usage History (${allEntries.length} entries)`
         );
 
         const table = new Table({
@@ -157,7 +183,7 @@ export function registerUsageCommand(
           ]
         });
 
-        for (const entry of result.data) {
+        for (const entry of allEntries) {
           const date = new Date(entry.timestamp);
           const year = date.getUTCFullYear();
           const month = String(date.getUTCMonth() + 1).padStart(2, "0");
