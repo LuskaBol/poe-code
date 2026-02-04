@@ -7,6 +7,13 @@ import type { HttpClient } from "../http.js";
 const confirmMock = vi.hoisted(() => vi.fn());
 const isCancelMock = vi.hoisted(() => vi.fn().mockReturnValue(false));
 const getThemeMock = vi.hoisted(() => vi.fn());
+const typographyMock = vi.hoisted(() => ({
+  bold: vi.fn((t: string) => t),
+  dim: vi.fn((t: string) => t),
+  italic: vi.fn((t: string) => t),
+  underline: vi.fn((t: string) => t),
+  strikethrough: vi.fn((t: string) => t)
+}));
 
 function createIdentityTheme() {
   return {
@@ -32,7 +39,8 @@ vi.mock("@poe-code/design-system", async (importOriginal) => {
     ...actual,
     confirm: confirmMock,
     isCancel: isCancelMock,
-    getTheme: getThemeMock
+    getTheme: getThemeMock,
+    typography: typographyMock
   };
 });
 
@@ -149,6 +157,91 @@ describe("usage balance command", () => {
     expect(
       logs.some((message) => message.includes("Dry run"))
     ).toBe(true);
+  });
+});
+
+describe("usage balance styling", () => {
+  let fs: FileSystem;
+  let logs: string[];
+  let httpClient: HttpClient;
+
+  beforeEach(() => {
+    fs = createMemfs(homeDir);
+    logs = [];
+    httpClient = vi.fn();
+    getThemeMock.mockReset().mockReturnValue(createIdentityTheme());
+    typographyMock.bold.mockReset().mockImplementation((t: string) => t);
+  });
+
+  it("styles balance value with theme.accent", async () => {
+    const accentFn = vi.fn((t: string) => t);
+    getThemeMock.mockReturnValue({ ...createIdentityTheme(), accent: accentFn });
+
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ monthly_available_balance: 1500 })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "balance"]);
+
+    expect(accentFn).toHaveBeenCalledWith("1,500");
+  });
+
+  it("applies bold to the balance value", async () => {
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ monthly_available_balance: 2500 })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "balance"]);
+
+    expect(typographyMock.bold).toHaveBeenCalledWith("2,500");
+  });
+
+  it("uses logger.info for the balance line", async () => {
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ monthly_available_balance: 750 })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+    vi.spyOn(program, "optsWithGlobals").mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "balance"]);
+
+    expect(logs.some((m) => m.includes("Current balance:"))).toBe(true);
+    expect(logs.some((m) => m.includes("750"))).toBe(true);
+    expect(logs.some((m) => m.includes("points"))).toBe(true);
   });
 });
 

@@ -4,7 +4,7 @@ import { createExecutionResources, resolveCommandFlags } from "./shared.js";
 import { loadCredentials } from "../../services/credentials.js";
 import { AuthenticationError, ApiError } from "../errors.js";
 import { Table } from "console-table-printer";
-import { confirm, isCancel, getTheme, widths } from "@poe-code/design-system";
+import { confirm, isCancel, getTheme, widths, typography } from "@poe-code/design-system";
 
 export function registerUsageCommand(
   program: Command,
@@ -69,11 +69,13 @@ export function registerUsageCommand(
         const data = (await response.json()) as {
           monthly_available_balance: number;
         };
+        const theme = getTheme();
         const formatted = data.monthly_available_balance.toLocaleString(
           "en-US"
         );
+        const styledBalance = typography.bold(theme.accent(formatted));
 
-        resources.logger.info(`Current balance: ${formatted} points`);
+        resources.logger.info(`Current balance: ${styledBalance} points`);
       } catch (error) {
         if (error instanceof Error) {
           resources.logger.logException(error, "usage balance", {
