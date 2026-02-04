@@ -400,6 +400,30 @@ const stopped = renderSpinnerStopped({ message: "Complete!", timer: "2s" });
 
 ![spinner-timer](design-language/spinner-timer.png)
 
+### table-markdown
+
+Table rendered as markdown for piping, copying, or non-terminal output
+
+```typescript
+import { renderTable, getTheme, resetOutputFormatCache, resolveOutputFormat } from "@poe-code/design-system";
+
+resetOutputFormatCache();
+resolveOutputFormat({ OUTPUT_FORMAT: "markdown" });
+
+const md = renderTable({
+  theme: getTheme(),
+  columns: [
+    { name: "Model", title: "Model", alignment: "left", maxLen: 30 },
+    { name: "Context", title: "Context", alignment: "right", maxLen: 9 },
+  ],
+  rows: [
+    { Model: "anthropic/claude-sonnet-4", Context: "200K" },
+  ],
+});
+```
+
+![table-markdown](design-language/table-markdown.png)
+
 ### diff
 
 Unified diff display for file changes (used in --dry-run)

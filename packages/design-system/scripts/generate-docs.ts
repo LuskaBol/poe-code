@@ -313,9 +313,12 @@ const stopped = renderSpinnerStopped({ message: "Complete!", timer: "2s" });`,
       {
         name: "table-markdown",
         description: "Table rendered as markdown for piping, copying, or non-terminal output",
-        codeSnippet: `import { renderTableMarkdown, getTheme } from "@poe-code/design-system";
+        codeSnippet: `import { renderTable, getTheme, resetOutputFormatCache, resolveOutputFormat } from "@poe-code/design-system";
 
-const md = renderTableMarkdown({
+resetOutputFormatCache();
+resolveOutputFormat({ OUTPUT_FORMAT: "markdown" });
+
+const md = renderTable({
   theme: getTheme(),
   columns: [
     { name: "Model", title: "Model", alignment: "left", maxLen: 30 },

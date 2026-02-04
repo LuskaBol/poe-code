@@ -6,7 +6,7 @@
 import chalk from "chalk";
 import process from "node:process";
 import { intro, log, note, outro } from "@clack/prompts";
-import { text, symbols, renderSpinnerFrame, renderSpinnerStopped, renderTableMarkdown, getTheme } from "../src/index.js";
+import { text, symbols, renderSpinnerFrame, renderSpinnerStopped, renderTable, getTheme, resolveOutputFormat, resetOutputFormatCache } from "../src/index.js";
 
 type DemoType =
   | "intro"
@@ -144,6 +144,11 @@ function runSpinnerDemo(indicator: "dots" | "timer"): void {
   process.stdout.write(stopped + "\n");
 }
 
+function setOutputFormat(format: "terminal" | "markdown" | "json"): void {
+  resetOutputFormatCache();
+  resolveOutputFormat({ OUTPUT_FORMAT: format });
+}
+
 function runLayoutDemo(): void {
   intro(text.intro("Configure"));
   log.message("Configuring claude-code...", { symbol: symbols.info });
@@ -153,8 +158,9 @@ function runLayoutDemo(): void {
 }
 
 function runTableMarkdownDemo(): void {
+  setOutputFormat("markdown");
   const theme = getTheme();
-  const md = renderTableMarkdown({
+  const md = renderTable({
     theme,
     columns: [
       { name: "Model", title: "Model", alignment: "left", maxLen: 30 },

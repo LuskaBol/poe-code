@@ -1,5 +1,6 @@
 import { Table } from "console-table-printer";
 import type { ThemePalette } from "../tokens/colors.js";
+import { resolveOutputFormat } from "../internal/output-format.js";
 
 export interface TableColumn {
   name: string;
@@ -18,21 +19,7 @@ function stripAnsi(value: string): string {
   return value.replace(/\u001b\[[0-9;]*m/g, "");
 }
 
-export function renderTableMarkdown(options: RenderTableOptions): string {
-  const { columns, rows } = options;
-
-  const header = `| ${columns.map((c) => c.title).join(" | ")} |`;
-  const separator = `| ${columns.map((c) => (c.alignment === "right" ? "---:" : ":---")).join(" | ")} |`;
-
-  const dataRows = rows.map(
-    (row) =>
-      `| ${columns.map((c) => stripAnsi(row[c.name] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`
-  );
-
-  return [header, separator, ...dataRows].join("\n");
-}
-
-export function renderTable(options: RenderTableOptions): string {
+function renderTableTerminal(options: RenderTableOptions): string {
   const { theme, columns, rows } = options;
 
   const table = new Table({
@@ -76,4 +63,44 @@ export function renderTable(options: RenderTableOptions): string {
   }
 
   return table.render();
+}
+
+function renderTableMarkdown(options: RenderTableOptions): string {
+  const { columns, rows } = options;
+
+  const header = `| ${columns.map((c) => c.title).join(" | ")} |`;
+  const separator = `| ${columns.map((c) => (c.alignment === "right" ? "---:" : ":---")).join(" | ")} |`;
+
+  const dataRows = rows.map(
+    (row) =>
+      `| ${columns.map((c) => stripAnsi(row[c.name] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`
+  );
+
+  return [header, separator, ...dataRows].join("\n");
+}
+
+function renderTableJson(options: RenderTableOptions): string {
+  const { columns, rows } = options;
+
+  const cleaned = rows.map((row) => {
+    const obj: Record<string, string> = {};
+    for (const col of columns) {
+      obj[col.name] = stripAnsi(row[col.name] ?? "");
+    }
+    return obj;
+  });
+
+  return JSON.stringify(cleaned, null, 2);
+}
+
+export function renderTable(options: RenderTableOptions): string {
+  const format = resolveOutputFormat();
+  switch (format) {
+    case "markdown":
+      return renderTableMarkdown(options);
+    case "json":
+      return renderTableJson(options);
+    default:
+      return renderTableTerminal(options);
+  }
 }

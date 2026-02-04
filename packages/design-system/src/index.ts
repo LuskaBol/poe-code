@@ -15,7 +15,7 @@ export { helpFormatter, formatCommand, formatUsage, formatOption, formatCommandL
 export type { CommandInfo, OptionInfo } from "./components/help-formatter.js";
 export { formatCommandNotFound } from "./components/command-errors.js";
 export { formatCommandNotFoundPanel } from "./components/command-errors.js";
-export { renderTable, renderTableMarkdown } from "./components/table.js";
+export { renderTable } from "./components/table.js";
 export type { TableColumn, RenderTableOptions } from "./components/table.js";
 
 // ACP rendering
@@ -35,3 +35,5 @@ export type { SpinnerFrameOptions, SpinnerStoppedOptions, MenuOption, RenderMenu
 // Internal utilities (for advanced use)
 export { getTheme, resolveThemeName, resetThemeCache } from "./internal/theme-detect.js";
 export type { ThemeEnv } from "./internal/theme-detect.js";
+export { resolveOutputFormat, resetOutputFormatCache } from "./internal/output-format.js";
+export type { OutputFormat } from "./internal/output-format.js";
