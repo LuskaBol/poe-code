@@ -311,6 +311,23 @@ const stopped = renderSpinnerStopped({ message: "Complete!", timer: "2s" });`,
         demoArgs: `spinner timer`
       },
       {
+        name: "table-markdown",
+        description: "Table rendered as markdown for piping, copying, or non-terminal output",
+        codeSnippet: `import { renderTableMarkdown, getTheme } from "@poe-code/design-system";
+
+const md = renderTableMarkdown({
+  theme: getTheme(),
+  columns: [
+    { name: "Model", title: "Model", alignment: "left", maxLen: 30 },
+    { name: "Context", title: "Context", alignment: "right", maxLen: 9 },
+  ],
+  rows: [
+    { Model: "anthropic/claude-sonnet-4", Context: "200K" },
+  ],
+});`,
+        demoArgs: `table-markdown`
+      },
+      {
         name: "diff",
         description: "Unified diff display for file changes (used in --dry-run)",
         codeSnippet: `import { log } from "@poe-code/design-system";

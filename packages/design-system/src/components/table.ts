@@ -14,6 +14,24 @@ export interface RenderTableOptions {
   rows: Record<string, string>[];
 }
 
+function stripAnsi(value: string): string {
+  return value.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
+export function renderTableMarkdown(options: RenderTableOptions): string {
+  const { columns, rows } = options;
+
+  const header = `| ${columns.map((c) => c.title).join(" | ")} |`;
+  const separator = `| ${columns.map((c) => (c.alignment === "right" ? "---:" : ":---")).join(" | ")} |`;
+
+  const dataRows = rows.map(
+    (row) =>
+      `| ${columns.map((c) => stripAnsi(row[c.name] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`
+  );
+
+  return [header, separator, ...dataRows].join("\n");
+}
+
 export function renderTable(options: RenderTableOptions): string {
   const { theme, columns, rows } = options;
 

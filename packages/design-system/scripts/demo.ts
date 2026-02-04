@@ -6,7 +6,7 @@
 import chalk from "chalk";
 import process from "node:process";
 import { intro, log, note, outro } from "@clack/prompts";
-import { text, symbols, renderSpinnerFrame, renderSpinnerStopped } from "../src/index.js";
+import { text, symbols, renderSpinnerFrame, renderSpinnerStopped, renderTableMarkdown, getTheme } from "../src/index.js";
 
 type DemoType =
   | "intro"
@@ -29,7 +29,8 @@ type DemoType =
   | "errorResolved"
   | "spinner"
   | "layout"
-  | "layout-expanded";
+  | "layout-expanded"
+  | "table-markdown";
 
 function runTextDemo(style: string, content: string): void {
   const styleFn = text[style as keyof typeof text];
@@ -151,6 +152,24 @@ function runLayoutDemo(): void {
   outro("Configuration complete.");
 }
 
+function runTableMarkdownDemo(): void {
+  const theme = getTheme();
+  const md = renderTableMarkdown({
+    theme,
+    columns: [
+      { name: "Model", title: "Model", alignment: "left", maxLen: 30 },
+      { name: "Context", title: "Context", alignment: "right", maxLen: 9 },
+      { name: "Price", title: "$/MTok In/Out", alignment: "right", maxLen: 15 },
+    ],
+    rows: [
+      { Model: "anthropic/claude-sonnet-4", Context: "200K", Price: "$3.00/$15.00" },
+      { Model: "openai/gpt-4o", Context: "128K", Price: "$2.50/$10.00" },
+      { Model: "google/gemini-2.0-flash", Context: "1M", Price: "$0.10/$0.40" },
+    ],
+  });
+  process.stdout.write(md + "\n");
+}
+
 function runLayoutExpandedDemo(): void {
   intro(text.intro("configure claude-code"));
   log.message("Claude Code default model\n   Claude-Opus-4.5", {
@@ -228,6 +247,9 @@ async function main(): Promise<void> {
       break;
     case "layout-expanded":
       runLayoutExpandedDemo();
+      break;
+    case "table-markdown":
+      runTableMarkdownDemo();
       break;
     default:
       process.stderr.write(`Unknown demo type: ${type}\n`);
