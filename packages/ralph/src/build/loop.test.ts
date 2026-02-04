@@ -113,7 +113,6 @@ describe("buildLoop", () => {
 
     const fs = createMemFs({
       [promptPath]: [
-        "Progress: {{PROGRESS_PATH}}",
         "Guardrails: {{GUARDRAILS_PATH}}",
         "Errors: {{ERRORS_LOG_PATH}}",
         "Activity: {{ACTIVITY_LOG_PATH}}",
@@ -154,7 +153,6 @@ describe("buildLoop", () => {
 
     const result = await buildLoop({
       planPath,
-      progressPath: "custom/progress.md",
       guardrailsPath: "custom/guardrails.md",
       errorsLogPath: "custom/errors.log",
       activityLogPath: "custom/activity.log",
@@ -179,7 +177,6 @@ describe("buildLoop", () => {
     });
 
     expect(result.stopReason).toBe("max_iterations");
-    expect(capturedPrompt).toContain("Progress: /custom/progress.md");
     expect(capturedPrompt).toContain("Guardrails: /custom/guardrails.md");
     expect(capturedPrompt).toContain("Errors: /custom/errors.log");
     expect(capturedPrompt).toContain("Activity: /custom/activity.log");

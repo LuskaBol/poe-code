@@ -477,7 +477,6 @@ describe("createRalphSimulation", () => {
       const sim = createRalphSimulation({
         plan: { stories: [{ id: "US-001", title: "Test" }] },
         config: {
-          progressPath: "custom/progress.md",
           guardrailsPath: "custom/guardrails.md",
           errorsLogPath: "custom/errors.log"
         },
@@ -486,7 +485,6 @@ describe("createRalphSimulation", () => {
 
       const { readFile, prompts } = await sim.run();
 
-      expect(prompts[0]).toContain("Progress: /custom/progress.md");
       expect(prompts[0]).toContain("Guardrails: /custom/guardrails.md");
       expect(prompts[0]).toContain("Errors: /custom/errors.log");
       expect(await readFile("custom/errors.log")).toContain("custom error");
