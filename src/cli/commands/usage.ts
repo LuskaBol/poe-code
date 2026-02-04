@@ -87,13 +87,15 @@ export function registerUsageCommand(
   usage
     .command("list")
     .description("Display usage history.")
-    .action(async () => {
+    .option("--filter <model>", "Filter results by model name")
+    .action(async function (this: Command) {
       const flags = resolveCommandFlags(program);
       const resources = createExecutionResources(
         container,
         flags,
         "usage:list"
       );
+      const commandOptions = this.opts<{ filter?: string }>();
 
       resources.logger.intro("usage list");
 
@@ -171,9 +173,22 @@ export function registerUsageCommand(
           }
         }
 
-        resources.logger.info(
-          `Usage History (${allEntries.length} entries)`
-        );
+        const filterTerm = commandOptions.filter;
+        const displayEntries = filterTerm
+          ? allEntries.filter((entry) =>
+              entry.model.toLowerCase().includes(filterTerm.toLowerCase())
+            )
+          : allEntries;
+
+        if (filterTerm) {
+          resources.logger.info(
+            `Usage History (${displayEntries.length} of ${allEntries.length} entries match "${filterTerm}")`
+          );
+        } else {
+          resources.logger.info(
+            `Usage History (${allEntries.length} entries)`
+          );
+        }
 
         const table = new Table({
           columns: [
@@ -183,7 +198,7 @@ export function registerUsageCommand(
           ]
         });
 
-        for (const entry of allEntries) {
+        for (const entry of displayEntries) {
           const date = new Date(entry.timestamp);
           const year = date.getUTCFullYear();
           const month = String(date.getUTCMonth() + 1).padStart(2, "0");

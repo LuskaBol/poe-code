@@ -287,4 +287,113 @@ describe("usage list command", () => {
     expect(httpClient).toHaveBeenCalledTimes(1);
     expect(confirmMock).toHaveBeenCalledTimes(1);
   });
+
+  it("filters results client-side when --filter provided", async () => {
+    fs = createCredentialsVolume("test-key");
+    const entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 },
+      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 }
+    ];
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: false, data: entries })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--filter", "claude"]);
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).toContain("Claude-Opus");
+    expect(output).not.toContain("gpt-5.2");
+    expect(logs.some((m) => m.includes('Usage History (2 of 3 entries match "claude")'))).toBe(true);
+  });
+
+  it("filters case-insensitively on model name", async () => {
+    fs = createCredentialsVolume("test-key");
+    const entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+    ];
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: false, data: entries })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--filter", "CLAUDE"]);
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).not.toContain("gpt-5.2");
+  });
+
+  it("pagination works with filter applied", async () => {
+    fs = createCredentialsVolume("test-key");
+    const page1Entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+    ];
+    const page2Entries = [
+      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 },
+      { id: "entry-4", timestamp: "2024-01-14T13:00:00Z", model: "gpt-5.2", cost: -20 }
+    ];
+
+    (httpClient as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: true, data: page1Entries })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ has_more: false, data: page2Entries })
+      });
+
+    confirmMock.mockResolvedValueOnce(true);
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--filter", "claude"]);
+
+    const output = logs.join("\n");
+    expect(output).toContain("Claude-Sonnet-4.5");
+    expect(output).toContain("Claude-Opus");
+    expect(output).not.toContain("gpt-5.2");
+    expect(logs.some((m) => m.includes('Usage History (2 of 4 entries match "claude")'))).toBe(true);
+    expect(httpClient).toHaveBeenCalledTimes(2);
+  });
 });
