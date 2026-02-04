@@ -96,12 +96,12 @@ function formatHelpText(input: {
       {
         name: "usage",
         args: "",
-        description: "Display current compute points balance"
+        description: "Display current Poe compute points balance"
       },
       {
         name: "usage list",
         args: "",
-        description: "Display usage history with pagination"
+        description: "Display usage history"
       }
     ];
   const nameWidth = Math.max(0, ...commandRows.map((row) => row.name.length));
