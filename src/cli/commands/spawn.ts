@@ -212,21 +212,14 @@ export function registerSpawnCommand(
         }
 
         if (final.threadId) {
-          const spawnConfig = getSpawnConfig(canonicalService);
-          if (spawnConfig?.kind === "cli" && spawnConfig.resumeCommand) {
-            const resolvedId = resolveAgentId(canonicalService) ?? canonicalService;
-            const agentDefinition = allAgents.find((agent) => agent.id === resolvedId);
-            const binaryName = agentDefinition?.binaryName;
-            if (binaryName) {
-              const resumeCwd = path.resolve(spawnOptions.cwd ?? process.cwd());
-              const args = spawnConfig.resumeCommand(final.threadId, resumeCwd);
-              const agentCommand = [binaryName, ...args.map(shlexQuote)].join(" ");
-              const needsCdPrefix = !args.includes(resumeCwd);
-              const resumeCommand = needsCdPrefix
-                ? `cd ${shlexQuote(resumeCwd)} && ${agentCommand}`
-                : agentCommand;
-              resources.logger.info(text.muted(`\nResume: ${resumeCommand}`));
-            }
+          const resolvedId = resolveAgentId(canonicalService) ?? canonicalService;
+          const agentDefinition = allAgents.find((agent) => agent.id === resolvedId);
+          const binaryName = agentDefinition?.binaryName;
+          if (binaryName) {
+            const resumeCwd = spawnOptions.cwd ?? process.cwd();
+            const resumeCommand =
+              `${binaryName} resume -C ${shlexQuote(resumeCwd)} ${final.threadId}`;
+            resources.logger.info(text.muted(`\nResume: ${resumeCommand}`));
           }
         }
       } finally {
