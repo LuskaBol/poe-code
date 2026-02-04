@@ -373,6 +373,62 @@ describe("usage list command", () => {
     expect(output).not.toContain("gpt-5.2");
   });
 
+  it("shows 'No usage history found.' when API returns empty data array", async () => {
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: false, data: [] })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list"]);
+
+    expect(logs.some((m) => m.includes("No usage history found."))).toBe(true);
+    expect(logs.join("\n")).not.toContain("┌");
+    expect(logs.join("\n")).not.toContain("Date");
+  });
+
+  it("shows 'No entries match \"xyz\".' when filter matches nothing", async () => {
+    fs = createCredentialsVolume("test-key");
+    const entries = [
+      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
+      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+    ];
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ has_more: false, data: entries })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage", "list", "--filter", "xyz"]);
+
+    expect(logs.some((m) => m.includes('No entries match "xyz".'))).toBe(true);
+    expect(logs.join("\n")).not.toContain("┌");
+    expect(logs.join("\n")).not.toContain("Date");
+  });
+
   it("pagination works with filter applied", async () => {
     fs = createCredentialsVolume("test-key");
     const page1Entries = [

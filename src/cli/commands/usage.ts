@@ -180,6 +180,16 @@ export function registerUsageCommand(
             )
           : allEntries;
 
+        if (allEntries.length === 0) {
+          resources.logger.info("No usage history found.");
+          return;
+        }
+
+        if (displayEntries.length === 0 && filterTerm) {
+          resources.logger.info(`No entries match "${filterTerm}".`);
+          return;
+        }
+
         if (filterTerm) {
           resources.logger.info(
             `Usage History (${displayEntries.length} of ${allEntries.length} entries match "${filterTerm}")`
