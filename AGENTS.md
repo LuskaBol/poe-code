@@ -38,7 +38,8 @@ Use docs/SNAPSHOT_TESTING.md
 - Follow Conventional Commits (`feat`, `fix`, `chore`, `docs`, `test`, `refactor`).
 - Keep subjects imperative and under 72 characters.
 - Commit specific files that you edited, never blanket git add -A
-- Do not add yourself as co-author, you don't even know if you wrote the code
+- Do not add yourself as co-author!
+- Do not commit files that are in gitignore
 
 ## Release
 
