@@ -81,7 +81,7 @@ describe("usage balance command", () => {
     (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ monthly_available_balance: 1500 })
+      json: async () => ({ current_point_balance: 1500 })
     });
 
     const program = createProgram({
@@ -105,6 +105,36 @@ describe("usage balance command", () => {
           Authorization: "Bearer test-key"
         })
       })
+    );
+    expect(
+      logs.some((message) => message.includes("Current balance: 1,500 points"))
+    ).toBe(true);
+  });
+
+  it("shows balance when invoked without subcommand", async () => {
+    fs = createCredentialsVolume("test-key");
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ current_point_balance: 1500 })
+    });
+
+    const program = createProgram({
+      fs,
+      prompts: vi.fn(),
+      env: { cwd, homeDir },
+      httpClient,
+      logger: (message) => logs.push(message)
+    });
+
+    const optsSpy = vi.spyOn(program, "optsWithGlobals");
+    optsSpy.mockReturnValue({ yes: false, dryRun: false } as any);
+
+    await program.parseAsync(["node", "cli", "usage"]);
+
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining("/usage/current_balance"),
+      expect.any(Object)
     );
     expect(
       logs.some((message) => message.includes("Current balance: 1,500 points"))
@@ -181,7 +211,7 @@ describe("usage balance styling", () => {
     (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ monthly_available_balance: 1500 })
+      json: async () => ({ current_point_balance: 1500 })
     });
 
     const program = createProgram({
@@ -203,7 +233,7 @@ describe("usage balance styling", () => {
     (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ monthly_available_balance: 2500 })
+      json: async () => ({ current_point_balance: 2500 })
     });
 
     const program = createProgram({
@@ -225,7 +255,7 @@ describe("usage balance styling", () => {
     (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ monthly_available_balance: 750 })
+      json: async () => ({ current_point_balance: 750 })
     });
 
     const program = createProgram({
@@ -263,14 +293,16 @@ describe("usage list command", () => {
     fs = createCredentialsVolume("test-key");
     const entries = [
       {
-        timestamp: "2024-01-15T10:30:00Z",
-        model: "Claude-Sonnet-4.5",
-        cost: -50
+        query_id: "q1",
+        creation_time: 1705314600000000,
+        bot_name: "Claude-Sonnet-4.5",
+        cost_points: -50
       },
       {
-        timestamp: "2024-01-15T09:15:00Z",
-        model: "gpt-5.2",
-        cost: -30
+        query_id: "q2",
+        creation_time: 1705310100000000,
+        bot_name: "gpt-5.2",
+        cost_points: -30
       }
     ];
     (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -320,11 +352,11 @@ describe("usage list command", () => {
   it("prompts 'Load more?' when API returns has_more=true", async () => {
     fs = createCredentialsVolume("test-key");
     const page1Entries = [
-      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
-      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+      { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+      { query_id: "entry-2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 }
     ];
     const page2Entries = [
-      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 }
+      { query_id: "entry-3", creation_time: 1705240800000000, bot_name: "Claude-Opus", cost_points: -100 }
     ];
 
     (httpClient as ReturnType<typeof vi.fn>)
@@ -378,8 +410,8 @@ describe("usage list command", () => {
         has_more: true,
         length: 2,
         data: [
-          { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
-          { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+          { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+          { query_id: "entry-2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 }
         ]
       })
     });
@@ -406,9 +438,9 @@ describe("usage list command", () => {
   it("filters results client-side when --filter provided", async () => {
     fs = createCredentialsVolume("test-key");
     const entries = [
-      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
-      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 },
-      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 }
+      { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+      { query_id: "entry-2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 },
+      { query_id: "entry-3", creation_time: 1705240800000000, bot_name: "Claude-Opus", cost_points: -100 }
     ];
     (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -439,8 +471,8 @@ describe("usage list command", () => {
   it("filters case-insensitively on model name", async () => {
     fs = createCredentialsVolume("test-key");
     const entries = [
-      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
-      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+      { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+      { query_id: "entry-2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 }
     ];
     (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -495,8 +527,8 @@ describe("usage list command", () => {
   it("shows 'No entries match \"xyz\".' when filter matches nothing", async () => {
     fs = createCredentialsVolume("test-key");
     const entries = [
-      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
-      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+      { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+      { query_id: "entry-2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 }
     ];
     (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -525,12 +557,12 @@ describe("usage list command", () => {
   it("pagination works with filter applied", async () => {
     fs = createCredentialsVolume("test-key");
     const page1Entries = [
-      { id: "entry-1", timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
-      { id: "entry-2", timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+      { query_id: "entry-1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+      { query_id: "entry-2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 }
     ];
     const page2Entries = [
-      { id: "entry-3", timestamp: "2024-01-14T14:00:00Z", model: "Claude-Opus", cost: -100 },
-      { id: "entry-4", timestamp: "2024-01-14T13:00:00Z", model: "gpt-5.2", cost: -20 }
+      { query_id: "entry-3", creation_time: 1705240800000000, bot_name: "Claude-Opus", cost_points: -100 },
+      { query_id: "entry-4", creation_time: 1705237200000000, bot_name: "gpt-5.2", cost_points: -20 }
     ];
 
     (httpClient as ReturnType<typeof vi.fn>)
@@ -593,7 +625,7 @@ describe("usage list table styling", () => {
       status: 200,
       json: async () => ({
         has_more: false,
-        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+        data: [{ query_id: "q1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 }]
       })
     });
 
@@ -623,7 +655,7 @@ describe("usage list table styling", () => {
       status: 200,
       json: async () => ({
         has_more: false,
-        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+        data: [{ query_id: "q1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 }]
       })
     });
 
@@ -652,8 +684,8 @@ describe("usage list table styling", () => {
       json: async () => ({
         has_more: false,
         data: [
-          { timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 },
-          { timestamp: "2024-01-15T09:15:00Z", model: "gpt-5.2", cost: -30 }
+          { query_id: "q1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 },
+          { query_id: "q2", creation_time: 1705310100000000, bot_name: "gpt-5.2", cost_points: -30 }
         ]
       })
     });
@@ -683,7 +715,7 @@ describe("usage list table styling", () => {
       status: 200,
       json: async () => ({
         has_more: false,
-        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+        data: [{ query_id: "q1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 }]
       })
     });
 
@@ -712,8 +744,8 @@ describe("usage list table styling", () => {
       json: async () => ({
         has_more: false,
         data: [
-          { timestamp: "2024-01-15T10:30:00Z", model: "model-a", cost: 0 },
-          { timestamp: "2024-01-15T09:15:00Z", model: "model-b", cost: 10 }
+          { query_id: "q1", creation_time: 1705314600000000, bot_name: "model-a", cost_points: 0 },
+          { query_id: "q2", creation_time: 1705310100000000, bot_name: "model-b", cost_points: 10 }
         ]
       })
     });
@@ -741,7 +773,7 @@ describe("usage list table styling", () => {
       status: 200,
       json: async () => ({
         has_more: false,
-        data: [{ timestamp: "2024-01-15T10:30:00Z", model: longModelName, cost: -50 }]
+        data: [{ query_id: "q1", creation_time: 1705314600000000, bot_name: longModelName, cost_points: -50 }]
       })
     });
 
@@ -771,7 +803,7 @@ describe("usage list table styling", () => {
       status: 200,
       json: async () => ({
         has_more: false,
-        data: [{ timestamp: "2024-01-15T10:30:00Z", model: "Claude-Sonnet-4.5", cost: -50 }]
+        data: [{ query_id: "q1", creation_time: 1705314600000000, bot_name: "Claude-Sonnet-4.5", cost_points: -50 }]
       })
     });
 
