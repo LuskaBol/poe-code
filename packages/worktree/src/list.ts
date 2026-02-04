@@ -7,9 +7,10 @@ export type ListWorktreeEntry = Worktree & {
 
 export async function listWorktrees(
   cwd: string,
+  registryFile: string,
   deps: WorktreeDeps
 ): Promise<ListWorktreeEntry[]> {
-  const registry = await readRegistry(cwd, deps.fs);
+  const registry = await readRegistry(registryFile, deps.fs);
   const gitOutput = await deps.exec("git worktree list --porcelain", {
     cwd
   });

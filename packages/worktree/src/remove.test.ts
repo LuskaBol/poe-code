@@ -4,6 +4,8 @@ import type { WorktreeFileSystem, ExecFn } from "./types.js";
 import { removeWorktree } from "./remove.js";
 import { addWorktreeEntry, readRegistry } from "./registry.js";
 
+const REGISTRY = "/repo/.poe-code-ralph/worktrees.yaml";
+
 function createMemFs(
   files: Record<string, string> = {}
 ): WorktreeFileSystem {
@@ -19,9 +21,9 @@ describe("removeWorktree", () => {
   it("runs git worktree remove", async () => {
     const fs = createMemFs();
     const exec = createMockExec();
-    await addWorktreeEntry("/repo", {
+    await addWorktreeEntry(REGISTRY, {
       name: "wt",
-      path: "/repo/.poe-code-worktrees/wt",
+      path: "/repo/.poe-code-ralph/worktrees/wt",
       branch: "poe-code/wt",
       baseBranch: "main",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -30,10 +32,10 @@ describe("removeWorktree", () => {
       status: "active"
     }, fs);
 
-    await removeWorktree({ cwd: "/repo", name: "wt", deps: { fs, exec } });
+    await removeWorktree({ cwd: "/repo", name: "wt", registryFile: REGISTRY, deps: { fs, exec } });
 
     expect(exec).toHaveBeenCalledWith(
-      "git worktree remove /repo/.poe-code-worktrees/wt",
+      "git worktree remove /repo/.poe-code-ralph/worktrees/wt",
       { cwd: "/repo" }
     );
   });
@@ -41,9 +43,9 @@ describe("removeWorktree", () => {
   it("removes entry from registry", async () => {
     const fs = createMemFs();
     const exec = createMockExec();
-    await addWorktreeEntry("/repo", {
+    await addWorktreeEntry(REGISTRY, {
       name: "wt",
-      path: "/repo/.poe-code-worktrees/wt",
+      path: "/repo/.poe-code-ralph/worktrees/wt",
       branch: "poe-code/wt",
       baseBranch: "main",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -52,18 +54,18 @@ describe("removeWorktree", () => {
       status: "active"
     }, fs);
 
-    await removeWorktree({ cwd: "/repo", name: "wt", deps: { fs, exec } });
+    await removeWorktree({ cwd: "/repo", name: "wt", registryFile: REGISTRY, deps: { fs, exec } });
 
-    const registry = await readRegistry("/repo", fs);
+    const registry = await readRegistry(REGISTRY, fs);
     expect(registry.worktrees).toHaveLength(0);
   });
 
   it("deletes branch when deleteBranch is true", async () => {
     const fs = createMemFs();
     const exec = createMockExec();
-    await addWorktreeEntry("/repo", {
+    await addWorktreeEntry(REGISTRY, {
       name: "wt",
-      path: "/repo/.poe-code-worktrees/wt",
+      path: "/repo/.poe-code-ralph/worktrees/wt",
       branch: "poe-code/wt",
       baseBranch: "main",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -75,6 +77,7 @@ describe("removeWorktree", () => {
     await removeWorktree({
       cwd: "/repo",
       name: "wt",
+      registryFile: REGISTRY,
       deleteBranch: true,
       deps: { fs, exec }
     });
@@ -88,9 +91,9 @@ describe("removeWorktree", () => {
   it("does not delete branch when deleteBranch is false", async () => {
     const fs = createMemFs();
     const exec = createMockExec();
-    await addWorktreeEntry("/repo", {
+    await addWorktreeEntry(REGISTRY, {
       name: "wt",
-      path: "/repo/.poe-code-worktrees/wt",
+      path: "/repo/.poe-code-ralph/worktrees/wt",
       branch: "poe-code/wt",
       baseBranch: "main",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -99,7 +102,7 @@ describe("removeWorktree", () => {
       status: "active"
     }, fs);
 
-    await removeWorktree({ cwd: "/repo", name: "wt", deps: { fs, exec } });
+    await removeWorktree({ cwd: "/repo", name: "wt", registryFile: REGISTRY, deps: { fs, exec } });
 
     expect(exec).toHaveBeenCalledTimes(1);
   });
@@ -109,7 +112,7 @@ describe("removeWorktree", () => {
     const exec = createMockExec();
 
     await expect(
-      removeWorktree({ cwd: "/repo", name: "missing", deps: { fs, exec } })
+      removeWorktree({ cwd: "/repo", name: "missing", registryFile: REGISTRY, deps: { fs, exec } })
     ).rejects.toThrow('Worktree "missing" not found in registry');
   });
 });

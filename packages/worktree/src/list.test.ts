@@ -4,6 +4,8 @@ import type { WorktreeFileSystem, ExecFn } from "./types.js";
 import { listWorktrees } from "./list.js";
 import { addWorktreeEntry } from "./registry.js";
 
+const REGISTRY = "/repo/.poe-code-ralph/worktrees.yaml";
+
 function createMemFs(
   files: Record<string, string> = {}
 ): WorktreeFileSystem {
@@ -19,15 +21,15 @@ describe("listWorktrees", () => {
       stderr: ""
     });
 
-    const result = await listWorktrees("/repo", { fs, exec });
+    const result = await listWorktrees("/repo", REGISTRY, { fs, exec });
     expect(result).toEqual([]);
   });
 
   it("reconciles registry entries with git worktree list", async () => {
     const fs = createMemFs();
-    await addWorktreeEntry("/repo", {
+    await addWorktreeEntry(REGISTRY, {
       name: "exists",
-      path: "/repo/.poe-code-worktrees/exists",
+      path: "/repo/.poe-code-ralph/worktrees/exists",
       branch: "poe-code/exists",
       baseBranch: "main",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -35,9 +37,9 @@ describe("listWorktrees", () => {
       agent: "codex",
       status: "active"
     }, fs);
-    await addWorktreeEntry("/repo", {
+    await addWorktreeEntry(REGISTRY, {
       name: "gone",
-      path: "/repo/.poe-code-worktrees/gone",
+      path: "/repo/.poe-code-ralph/worktrees/gone",
       branch: "poe-code/gone",
       baseBranch: "main",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -52,7 +54,7 @@ describe("listWorktrees", () => {
         "HEAD abc123",
         "branch refs/heads/main",
         "",
-        "worktree /repo/.poe-code-worktrees/exists",
+        "worktree /repo/.poe-code-ralph/worktrees/exists",
         "HEAD def456",
         "branch refs/heads/poe-code/exists",
         ""
@@ -60,7 +62,7 @@ describe("listWorktrees", () => {
       stderr: ""
     });
 
-    const result = await listWorktrees("/repo", { fs, exec });
+    const result = await listWorktrees("/repo", REGISTRY, { fs, exec });
     expect(result).toHaveLength(2);
     expect(result[0]!.name).toBe("exists");
     expect(result[0]!.gitExists).toBe(true);
@@ -72,7 +74,7 @@ describe("listWorktrees", () => {
     const fs = createMemFs();
     const exec = vi.fn<ExecFn>().mockResolvedValue({ stdout: "", stderr: "" });
 
-    await listWorktrees("/repo", { fs, exec });
+    await listWorktrees("/repo", REGISTRY, { fs, exec });
     expect(exec).toHaveBeenCalledWith("git worktree list --porcelain", {
       cwd: "/repo"
     });

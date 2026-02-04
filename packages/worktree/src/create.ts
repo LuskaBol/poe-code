@@ -8,6 +8,8 @@ export type CreateWorktreeOptions = {
   baseBranch: string;
   source: string;
   agent: string;
+  registryFile: string;
+  worktreeDir: string;
   storyId?: string;
   planPath?: string;
   prompt?: string;
@@ -18,7 +20,7 @@ export async function createWorktree(
   opts: CreateWorktreeOptions
 ): Promise<Worktree> {
   const branch = `poe-code/${opts.name}`;
-  const worktreePath = join(opts.cwd, ".poe-code-worktrees", opts.name);
+  const worktreePath = join(opts.worktreeDir, opts.name);
 
   // Clean up any existing worktree/branch from a previous run
   try {
@@ -27,7 +29,7 @@ export async function createWorktree(
   try {
     await opts.deps.exec(`git branch -D ${branch}`, { cwd: opts.cwd });
   } catch { /* branch may not exist */ }
-  await removeWorktreeEntry(opts.cwd, opts.name, opts.deps.fs).catch(() => {});
+  await removeWorktreeEntry(opts.registryFile, opts.name, opts.deps.fs).catch(() => {});
 
   await opts.deps.exec(
     `git worktree add -b ${branch} ${worktreePath} ${opts.baseBranch}`,
@@ -48,7 +50,7 @@ export async function createWorktree(
     ...(opts.prompt !== undefined && { prompt: opts.prompt })
   };
 
-  await addWorktreeEntry(opts.cwd, entry, opts.deps.fs);
+  await addWorktreeEntry(opts.registryFile, entry, opts.deps.fs);
 
   return entry;
 }

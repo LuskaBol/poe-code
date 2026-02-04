@@ -179,11 +179,11 @@ describe("buildLoop with worktree", () => {
     expect(createCmd?.command).toContain("main");
 
     // Build ran inside the worktree directory
-    expect(capturedCwd).toContain(".poe-code-worktrees/plan-build-worktree");
+    expect(capturedCwd).toContain(".poe-code-ralph/worktrees/plan-build-worktree");
 
     // Plan was copied into the worktree
     const worktreePlanPath =
-      "/.poe-code-worktrees/plan-build-worktree/.agents/tasks/plan-build-worktree.yaml";
+      "/.poe-code-ralph/worktrees/plan-build-worktree/.agents/tasks/plan-build-worktree.yaml";
     const copiedPlan = await fs.readFile(worktreePlanPath, "utf8");
     expect(copiedPlan).toContain("US-001");
 
@@ -201,18 +201,18 @@ describe("buildLoop with worktree", () => {
 
     // Gitignored directories were symlinked into the worktree
     const poeCodeRalphStat = await fs.lstat(
-      "/.poe-code-worktrees/plan-build-worktree/.poe-code-ralph"
+      "/.poe-code-ralph/worktrees/plan-build-worktree/.poe-code-ralph"
     );
     expect(poeCodeRalphStat.isSymbolicLink()).toBe(true);
 
     const agentsStat = await fs.lstat(
-      "/.poe-code-worktrees/plan-build-worktree/.agents/poe-code-ralph"
+      "/.poe-code-ralph/worktrees/plan-build-worktree/.agents/poe-code-ralph"
     );
     expect(agentsStat.isSymbolicLink()).toBe(true);
 
     // Worktree registry was updated to "done"
     const registryContent = await fs.readFile(
-      "/.poe-code-worktrees/worktrees.yaml",
+      "/.poe-code-ralph/worktrees.yaml",
       "utf8"
     );
     expect(registryContent).toContain("done");
@@ -260,7 +260,7 @@ describe("buildLoop with worktree", () => {
     let isSymlink = false;
     try {
       const stat = await fs.lstat(
-        "/.poe-code-worktrees/plan-build-worktree/.poe-code-ralph"
+        "/.poe-code-ralph/worktrees/plan-build-worktree/.poe-code-ralph"
       );
       isSymlink = stat.isSymbolicLink();
     } catch {
@@ -315,7 +315,7 @@ describe("buildLoop with worktree", () => {
 
     // Worktree registry was updated to "failed"
     const registryContent = await fs.readFile(
-      "/.poe-code-worktrees/worktrees.yaml",
+      "/.poe-code-ralph/worktrees.yaml",
       "utf8"
     );
     expect(registryContent).toContain("failed");
@@ -504,7 +504,7 @@ describe("buildLoop with worktree", () => {
 
     // Verify the worktree plan was reset before the loop started
     const worktreePlanPath =
-      "/.poe-code-worktrees/plan-done/.agents/tasks/plan-done.yaml";
+      "/.poe-code-ralph/worktrees/plan-done/.agents/tasks/plan-done.yaml";
     const finalPlan = parsePlan(await fs.readFile(worktreePlanPath, "utf8"));
     // After successful run, stories should be done again
     expect(finalPlan.stories[0]?.status).toBe("done");
@@ -575,13 +575,13 @@ describe("buildLoop with worktree", () => {
       "/.poe-code-ralph/errors.log": "",
       "/.agents/tasks/plan-resume.yaml": originalPlanYaml,
       // Existing worktree files (from previous failed run)
-      "/.poe-code-worktrees/plan-resume/.agents/tasks/plan-resume.yaml": partialPlanYaml,
+      "/.poe-code-ralph/worktrees/plan-resume/.agents/tasks/plan-resume.yaml": partialPlanYaml,
       // Registry showing a failed worktree
-      "/.poe-code-worktrees/worktrees.yaml": stringify({
+      "/.poe-code-ralph/worktrees.yaml": stringify({
         worktrees: [
           {
             name: "plan-resume",
-            path: "/.poe-code-worktrees/plan-resume",
+            path: "/.poe-code-ralph/worktrees/plan-resume",
             branch: "poe-code/plan-resume",
             baseBranch: "main",
             createdAt: "2026-02-01T00:00:00.000Z",
@@ -595,10 +595,10 @@ describe("buildLoop with worktree", () => {
     });
 
     // The worktree already has symlinks from previous run - simulate them
-    await fs.mkdir("/.poe-code-worktrees/plan-resume/.poe-code-ralph", { recursive: true });
+    await fs.mkdir("/.poe-code-ralph/worktrees/plan-resume/.poe-code-ralph", { recursive: true });
     await fs.symlink(
       "/.agents/poe-code-ralph",
-      "/.poe-code-worktrees/plan-resume/.agents/poe-code-ralph"
+      "/.poe-code-ralph/worktrees/plan-resume/.agents/poe-code-ralph"
     );
 
     const { deps: worktreeDeps, execCalls } = createWorktreeDeps(fs);
@@ -673,11 +673,11 @@ describe("buildLoop with worktree", () => {
       "/.poe-code-ralph/errors.log": "",
       "/.agents/tasks/plan-build-worktree.yaml": allDonePlanYaml,
       // Registry showing a completed worktree
-      "/.poe-code-worktrees/worktrees.yaml": stringify({
+      "/.poe-code-ralph/worktrees.yaml": stringify({
         worktrees: [
           {
             name: "plan-build-worktree",
-            path: "/.poe-code-worktrees/plan-build-worktree",
+            path: "/.poe-code-ralph/worktrees/plan-build-worktree",
             branch: "poe-code/plan-build-worktree",
             baseBranch: "main",
             createdAt: "2026-02-01T00:00:00.000Z",

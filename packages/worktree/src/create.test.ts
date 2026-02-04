@@ -4,6 +4,9 @@ import type { WorktreeFileSystem, ExecFn } from "./types.js";
 import { createWorktree } from "./create.js";
 import { readRegistry } from "./registry.js";
 
+const REGISTRY = "/repo/.poe-code-ralph/worktrees.yaml";
+const WORKTREE_DIR = "/repo/.poe-code-ralph/worktrees";
+
 function createMemFs(
   files: Record<string, string> = {}
 ): WorktreeFileSystem {
@@ -26,11 +29,13 @@ describe("createWorktree", () => {
       baseBranch: "main",
       source: "ralph-build",
       agent: "codex",
+      registryFile: REGISTRY,
+      worktreeDir: WORKTREE_DIR,
       deps: { fs, exec }
     });
 
     expect(exec).toHaveBeenCalledWith(
-      "git worktree add -b poe-code/my-feature /repo/.poe-code-worktrees/my-feature main",
+      `git worktree add -b poe-code/my-feature ${WORKTREE_DIR}/my-feature main`,
       { cwd: "/repo" }
     );
   });
@@ -45,10 +50,12 @@ describe("createWorktree", () => {
       baseBranch: "main",
       source: "ralph-build",
       agent: "codex",
+      registryFile: REGISTRY,
+      worktreeDir: WORKTREE_DIR,
       deps: { fs, exec }
     });
 
-    const registry = await readRegistry("/repo", fs);
+    const registry = await readRegistry(REGISTRY, fs);
     expect(registry.worktrees).toHaveLength(1);
     expect(registry.worktrees[0]!.name).toBe("my-feature");
     expect(registry.worktrees[0]!.branch).toBe("poe-code/my-feature");
@@ -69,12 +76,14 @@ describe("createWorktree", () => {
       storyId: "US-001",
       planPath: "/plans/plan.yaml",
       prompt: "Do the thing",
+      registryFile: REGISTRY,
+      worktreeDir: WORKTREE_DIR,
       deps: { fs, exec }
     });
 
     expect(result).toMatchObject({
       name: "test",
-      path: "/repo/.poe-code-worktrees/test",
+      path: `${WORKTREE_DIR}/test`,
       branch: "poe-code/test",
       baseBranch: "develop",
       source: "cli",
@@ -98,10 +107,12 @@ describe("createWorktree", () => {
       baseBranch: "main",
       source: "ralph-build",
       agent: "codex",
+      registryFile: REGISTRY,
+      worktreeDir: WORKTREE_DIR,
       deps: { fs, exec }
     });
 
-    const registryBefore = await readRegistry("/repo", fs);
+    const registryBefore = await readRegistry(REGISTRY, fs);
     expect(registryBefore.worktrees).toHaveLength(1);
 
     // Second call: re-create with same name — should clean up first
@@ -111,18 +122,20 @@ describe("createWorktree", () => {
       baseBranch: "main",
       source: "ralph-build",
       agent: "codex",
+      registryFile: REGISTRY,
+      worktreeDir: WORKTREE_DIR,
       deps: { fs, exec }
     });
 
     // Should have called worktree remove + branch delete before the second add
     const commands = exec.mock.calls.map((c) => c[0]);
     expect(commands).toContain(
-      "git worktree remove /repo/.poe-code-worktrees/my-feature --force"
+      `git worktree remove ${WORKTREE_DIR}/my-feature --force`
     );
     expect(commands).toContain("git branch -D poe-code/my-feature");
 
     // Registry should have exactly one entry (old replaced)
-    const registryAfter = await readRegistry("/repo", fs);
+    const registryAfter = await readRegistry(REGISTRY, fs);
     expect(registryAfter.worktrees).toHaveLength(1);
     expect(registryAfter.worktrees[0]!.status).toBe("active");
   });
@@ -142,6 +155,8 @@ describe("createWorktree", () => {
       baseBranch: "main",
       source: "ralph-build",
       agent: "codex",
+      registryFile: REGISTRY,
+      worktreeDir: WORKTREE_DIR,
       deps: { fs, exec }
     });
 
@@ -159,6 +174,8 @@ describe("createWorktree", () => {
       baseBranch: "main",
       source: "test",
       agent: "codex",
+      registryFile: REGISTRY,
+      worktreeDir: WORKTREE_DIR,
       deps: { fs, exec }
     });
 

@@ -377,6 +377,8 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
 
   let worktreeBranch: string | undefined;
   let worktreeName: string | undefined;
+  const registryFile = absPath(originalCwd, ".poe-code-ralph/worktrees.yaml");
+  const worktreeDir = absPath(originalCwd, ".poe-code-ralph/worktrees");
 
   if (options.worktree?.enabled) {
     const worktreeDeps: WorktreeDeps = options.deps?.worktree ?? {
@@ -392,7 +394,7 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
     worktreeName = options.worktree.name ?? deriveWorktreeName(options.planPath);
 
     // Check registry for an existing worktree to resume
-    const registry = await readRegistry(cwd, worktreeDeps.fs);
+    const registry = await readRegistry(registryFile, worktreeDeps.fs);
     const existing = registry.worktrees.find((w) => w.name === worktreeName);
     const isResume = !!existing && (existing.status === "failed" || existing.status === "active");
 
@@ -402,7 +404,7 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
       cwd = existing.path;
       planPath = absPath(existing.path, options.planPath);
 
-      await updateWorktreeRegistryStatus(originalCwd, worktreeName, "active", {
+      await updateWorktreeRegistryStatus(registryFile, worktreeName, "active", {
         fs: worktreeDeps.fs
       });
     } else {
@@ -416,6 +418,8 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
         source: "ralph-build",
         agent: options.agent,
         planPath: options.planPath,
+        registryFile,
+        worktreeDir,
         deps: worktreeDeps
       });
 
@@ -719,7 +723,7 @@ export async function buildLoop(options: BuildLoopOptions): Promise<BuildResult>
 
     const worktreeStatus = result.storiesDone.length > 0 ? "done" : "failed";
 
-    await updateWorktreeRegistryStatus(originalCwd, worktreeName, worktreeStatus, {
+    await updateWorktreeRegistryStatus(registryFile, worktreeName, worktreeStatus, {
       fs: worktreeDeps.fs
     });
 
