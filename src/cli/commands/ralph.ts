@@ -497,6 +497,21 @@ export function registerRalphCommand(
         if (noCommit) resources.logger.info("No-commit:  true");
         if (worktree) resources.logger.info(`Worktree:   ${worktree.name ?? "(auto)"}`);
 
+        try {
+          const planContent = await container.fs.readFile(
+            path.resolve(cwd, planPath),
+            "utf8"
+          );
+          const plan = parsePlan(planContent);
+          const total = plan.stories.length;
+          const done = plan.stories.filter((s) => s.status === "done").length;
+          const inProgress = plan.stories.filter((s) => s.status === "in_progress").length;
+          const open = total - done - inProgress;
+          resources.logger.info(`Stories:    ${done}/${total} done${inProgress ? `, ${inProgress} in progress` : ""}${open ? `, ${open} open` : ""}`);
+        } catch {
+          // Plan file may not be parseable yet
+        }
+
         await ralphBuild({
           planPath,
           progressPath: config.progressPath,
