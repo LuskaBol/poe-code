@@ -1,6 +1,9 @@
 import path from "node:path";
+import { execSync } from "node:child_process";
 import type { Command } from "commander";
-import { select, isCancel, cancel } from "@poe-code/design-system";
+import { select, isCancel, cancel, log } from "@poe-code/design-system";
+import { listWorktrees, updateWorktreeStatus } from "@poe-code/worktree";
+import { spawnInteractive } from "@poe-code/agent-spawn";
 import { loadConfig, ralphBuild, logActivity, resolvePlanPath, parsePlan } from "@poe-code/ralph";
 import {
   supportedAgents,
@@ -23,6 +26,7 @@ const templateImports = {
   skillPlan: () => import("../../templates/ralph/SKILL_plan.md"),
   promptPlan: () => import("../../templates/ralph/PROMPT_plan.md"),
   promptBuild: () => import("../../templates/ralph/PROMPT_build.md"),
+  promptWorktreeMerge: () => import("../../templates/ralph/PROMPT_worktree_merge.md"),
   stateProgress: () => import("../../templates/ralph/state/progress.md"),
   stateGuardrails: () => import("../../templates/ralph/state/guardrails.md"),
   stateErrors: () => import("../../templates/ralph/state/errors.log"),
@@ -35,6 +39,7 @@ async function loadRalphTemplates() {
     skillPlan,
     promptPlan,
     promptBuild,
+    promptWorktreeMerge,
     stateProgress,
     stateGuardrails,
     stateErrors,
@@ -44,6 +49,7 @@ async function loadRalphTemplates() {
     templateImports.skillPlan(),
     templateImports.promptPlan(),
     templateImports.promptBuild(),
+    templateImports.promptWorktreeMerge(),
     templateImports.stateProgress(),
     templateImports.stateGuardrails(),
     templateImports.stateErrors(),
@@ -54,11 +60,83 @@ async function loadRalphTemplates() {
     skillPlan: skillPlan.default,
     promptPlan: promptPlan.default,
     promptBuild: promptBuild.default,
+    promptWorktreeMerge: promptWorktreeMerge.default,
     stateProgress: stateProgress.default,
     stateGuardrails: stateGuardrails.default,
     stateErrors: stateErrors.default,
     stateActivity: stateActivity.default,
   };
+}
+
+export type MergeContext = {
+  branchCommits: string;
+  baseCommits: string;
+  taskContext: string;
+  qualityGates: string;
+};
+
+export async function gatherMergeContext(
+  entry: {
+    branch: string;
+    baseBranch: string;
+    source: string;
+    planPath?: string;
+    storyId?: string;
+    prompt?: string;
+  },
+  deps: {
+    exec: (command: string) => string;
+    readFile: (path: string, encoding: BufferEncoding) => Promise<string>;
+  }
+): Promise<MergeContext> {
+  let branchCommits = "";
+  try {
+    branchCommits = deps
+      .exec(`git log ${entry.baseBranch}..${entry.branch} --oneline`)
+      .trim();
+  } catch {
+    // Branch may not exist or have no commits
+  }
+
+  let baseCommits = "";
+  try {
+    baseCommits = deps
+      .exec(`git log ${entry.branch}..${entry.baseBranch} --oneline`)
+      .trim();
+  } catch {
+    // Branch may not exist or have no commits
+  }
+
+  let taskContext = "";
+  let qualityGates = "";
+
+  if (entry.source === "ralph-build" && entry.planPath && entry.storyId) {
+    try {
+      const content = await deps.readFile(entry.planPath, "utf8");
+      const plan = parsePlan(content);
+
+      const story = plan.stories.find((s) => s.id === entry.storyId);
+      if (story) {
+        const parts: string[] = [];
+        if (story.description) parts.push(story.description.trim());
+        if (story.acceptanceCriteria.length > 0) {
+          parts.push("Acceptance Criteria:");
+          parts.push(...story.acceptanceCriteria.map((c) => `- ${c}`));
+        }
+        taskContext = parts.join("\n");
+      }
+
+      if (plan.qualityGates.length > 0) {
+        qualityGates = plan.qualityGates.map((g) => `- ${g}`).join("\n");
+      }
+    } catch {
+      // Gracefully handle missing plan file or parse errors
+    }
+  } else if (entry.prompt) {
+    taskContext = entry.prompt;
+  }
+
+  return { branchCommits, baseCommits, taskContext, qualityGates };
 }
 
 const DEFAULT_RALPH_AGENT = "claude-code";
@@ -532,6 +610,112 @@ export function registerRalphCommand(
       } finally {
         resources.context.finalize();
       }
+    });
+
+  ralph
+    .command("worktree")
+    .description("Select and merge a worktree.")
+    .option("--agent <name>", "Agent to use for the merge")
+    .action(async function (this: Command) {
+      const cwd = container.env.cwd;
+      const registryFile = path.join(cwd, ".poe-code-ralph", "worktrees.yaml");
+
+      const worktrees = await listWorktrees(cwd, registryFile, {
+        fs: {
+          readFile: (p: string, enc: BufferEncoding) => container.fs.readFile(p, enc),
+          writeFile: (p: string, data: string, opts?: { encoding?: BufferEncoding }) =>
+            container.fs.writeFile(p, data, opts),
+          mkdir: (p: string, opts?: { recursive?: boolean }) => container.fs.mkdir(p, opts)
+        },
+        exec: (command: string, opts?: { cwd?: string }) =>
+          Promise.resolve({
+            stdout: execSync(command, {
+              cwd: opts?.cwd,
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"]
+            }),
+            stderr: ""
+          })
+      });
+
+      const mergeable = worktrees.filter(
+        (w) => w.status === "done" || w.status === "failed"
+      );
+
+      if (mergeable.length === 0) {
+        log.info("No mergeable worktrees found.");
+        return;
+      }
+
+      const selected = await select({
+        message: "Select a worktree to merge:",
+        options: mergeable.map((w) => ({
+          value: w.name,
+          label: `${w.name} (${w.branch}) [${w.status}]`
+        }))
+      });
+
+      if (isCancel(selected)) {
+        cancel("Operation cancelled");
+        return;
+      }
+
+      const entry = mergeable.find((w) => w.name === selected);
+      if (!entry || !entry.gitExists) {
+        throw new ValidationError(
+          `Worktree directory does not exist for "${selected as string}". It may have been manually removed.`
+        );
+      }
+
+      const options = this.opts<{ agent?: string }>();
+
+      const context = await gatherMergeContext(entry, {
+        exec: (command: string) =>
+          execSync(command, {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"]
+          }),
+        readFile: (p: string, enc: BufferEncoding) =>
+          container.fs.readFile(
+            path.isAbsolute(p) ? p : path.resolve(cwd, p),
+            enc
+          )
+      });
+
+      const { default: mergeTemplate } = await templateImports.promptWorktreeMerge();
+      const renderedPrompt = renderTemplate(mergeTemplate, {
+        WORKTREE_NAME: entry.name,
+        WORKTREE_PATH: entry.path,
+        WORKTREE_BRANCH: entry.branch,
+        BASE_BRANCH: entry.baseBranch,
+        MAIN_CWD: cwd,
+        TASK_CONTEXT: context.taskContext,
+        BRANCH_COMMITS: context.branchCommits,
+        BASE_COMMITS: context.baseCommits,
+        QUALITY_GATES: context.qualityGates
+      });
+
+      const agent = options.agent?.trim() || entry.agent;
+      const result = await spawnInteractive(agent, {
+        prompt: renderedPrompt,
+        cwd
+      });
+
+      const fsAdapter = {
+        readFile: (p: string, enc: BufferEncoding) => container.fs.readFile(p, enc),
+        writeFile: (p: string, data: string, opts?: { encoding?: BufferEncoding }) =>
+          container.fs.writeFile(p, data, opts),
+        mkdir: (p: string, opts?: { recursive?: boolean }) => container.fs.mkdir(p, opts)
+      };
+
+      if (result.exitCode === 0) {
+        await updateWorktreeStatus(registryFile, entry.name, "done", { fs: fsAdapter });
+        log.success(`Worktree "${entry.name}" merged successfully.`);
+      } else {
+        await updateWorktreeStatus(registryFile, entry.name, "failed", { fs: fsAdapter });
+        log.error(`Agent exited with code ${result.exitCode}. Worktree "${entry.name}" marked as failed.`);
+      }
+
     });
 
   ralph
