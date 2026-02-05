@@ -44,6 +44,12 @@ describe('toHaveExitCode', () => {
       expect(makeResult({ exitCode: 1, stdout: 'some output', stderr: 'some error' })).toHaveExitCode(0);
     }).toThrow(/stdout: some output/);
   });
+
+  it('failure message includes command when present', () => {
+    expect(() => {
+      expect(makeResult({ exitCode: 1, command: 'poe-code install foo' })).toHaveExitCode(0);
+    }).toThrow(/Command: poe-code install foo/);
+  });
 });
 
 describe('toSucceedWith', () => {
@@ -77,6 +83,12 @@ describe('toSucceedWith', () => {
     expect(() => {
       expect(makeResult({ exitCode: 1, stdout: 'output', stderr: 'err' })).toSucceedWith('text');
     }).toThrow(/stderr: err/);
+  });
+
+  it('failure message includes command when present', () => {
+    expect(() => {
+      expect(makeResult({ exitCode: 1, stdout: 'output', command: 'poe-code test foo' })).toSucceedWith('text');
+    }).toThrow(/Command: poe-code test foo/);
   });
 });
 

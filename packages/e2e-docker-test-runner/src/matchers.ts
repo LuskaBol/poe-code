@@ -2,11 +2,16 @@ import { expect } from 'vitest';
 import type { ExecResult, Container } from './types.js';
 
 function formatExecContext(result: ExecResult): string {
-  return [
+  const lines: string[] = [];
+  if (result.command) {
+    lines.push(`  Command: ${result.command}`);
+  }
+  lines.push(
     `  Exit code: ${result.exitCode}`,
     `  stdout: ${result.stdout || '(empty)'}`,
     `  stderr: ${result.stderr || '(empty)'}`,
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 expect.extend({
@@ -130,7 +135,7 @@ expect.extend({
 
 declare module 'vitest' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface Assertion<T = unknown> {
+  interface Assertion<T> {
     toHaveExitCode(code: number): void;
     toSucceedWith(text: string): void;
     toFail(): void;

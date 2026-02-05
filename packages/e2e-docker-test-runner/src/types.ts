@@ -2,6 +2,7 @@ export interface ExecResult {
   exitCode: number;
   stdout: string;
   stderr: string;
+  command?: string;
 }
 
 export interface ContainerOptions {
