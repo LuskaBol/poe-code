@@ -8,3 +8,21 @@ jobs:
     uses: ./.github/workflows/pr-checks.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
+
+  e2e:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run e2e:verbose
+        env:
+          POE_API_KEY: ${{ secrets.POE_API_KEY }}
+        timeout-minutes: 15
