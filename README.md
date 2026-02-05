@@ -1,3 +1,5 @@
+![poe-code banner](docs/banners/claude-opus-4-6.jpg)
+
 # poe-code
 
 > Configure coding agents to use the Poe API.
