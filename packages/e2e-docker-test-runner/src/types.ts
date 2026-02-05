@@ -11,6 +11,7 @@ export interface ContainerOptions {
 
 export interface Container {
   id: string;
+  destroy(): Promise<void>;
   exec(command: string): Promise<ExecResult>;
   execOrThrow(command: string): Promise<ExecResult>;
   login(): Promise<void>;
