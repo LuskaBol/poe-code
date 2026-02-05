@@ -62,11 +62,13 @@ You are not allowed to add anything to readme without user's permission. Upon fe
 
 Planning docs must be in `docs` folder
 
-## Testing functionality e2e
+## Testing
+
+### Spot testing
 
 `npm run dev -- <command> <args>`
 
-## Testing visual - use screenshots to see
+### Visual testing - use screenshots to see
 
 You must test changes via screenshots
 
@@ -79,6 +81,18 @@ e.g.
 Make sure they are designed well, functional and work correctly.
 Test every change using screenshots that might have impact on visual cli
 Don't write any screenshot tests, screenshots are only for adhoc validations
+
+### E2E Tests
+
+`npm run e2e:verbose`
+
+You must run those when
+
+- you change something about
+  - configure
+  - spawn
+  - isolated spawn
+- you change the e2e tests
 
 ## CLI vs SDK
 
