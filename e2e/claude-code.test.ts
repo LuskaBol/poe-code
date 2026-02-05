@@ -1,34 +1,67 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { runInContainer, setWorkspaceDir, getApiKey } from '@poe-code/e2e-docker-test-runner';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createContainer, setWorkspaceDir } from '@poe-code/e2e-docker-test-runner';
+import type { Container } from '@poe-code/e2e-docker-test-runner';
 import { join } from 'node:path';
 
 const repoRoot = join(import.meta.dirname, '..');
 
-beforeAll(() => {
-  setWorkspaceDir(repoRoot);
-});
-
-function login(): string {
-  return `poe-code login --api-key '${getApiKey()}'`;
-}
-
 describe('claude-code', () => {
-  it('configure flow', () => {
-    const result = runInContainer([
-      login(),
-      'poe-code install claude-code',
-      'poe-code configure claude-code --yes',
-      'poe-code test claude-code',
-    ]);
-    expect(result.exitCode).toBe(0);
+  let container: Container;
+
+  beforeAll(async () => {
+    setWorkspaceDir(repoRoot);
+    container = await createContainer({ testName: 'claude-code' });
+    await container.login();
   });
 
-  it('isolated flow', () => {
-    const result = runInContainer([
-      login(),
-      'poe-code install claude-code',
-      'poe-code test claude-code --isolated',
-    ]);
-    expect(result.exitCode).toBe(0);
+  afterAll(async () => {
+    await container?.destroy();
+  });
+
+  it('install', async () => {
+    const result = await container.exec('poe-code install claude-code');
+    expect(result).toHaveExitCode(0);
+    const which = await container.exec('which claude');
+    expect(which).toHaveExitCode(0);
+  });
+
+  it('configure', async () => {
+    const result = await container.exec('poe-code configure claude-code --yes');
+    expect(result).toHaveExitCode(0);
+
+    await expect(container).toHaveFile('/root/.claude/settings.json');
+    const raw = await container.readFile('/root/.claude/settings.json');
+    const config = JSON.parse(raw);
+    expect(config).toHaveProperty('apiKeyHelper');
+    expect(config).toHaveProperty('env.ANTHROPIC_BASE_URL');
+  });
+
+  it('test', async () => {
+    const result = await container.exec('poe-code test claude-code');
+    expect(result).toSucceedWith('CLAUDE_CODE_OK');
+  });
+});
+
+describe('claude-code isolated', () => {
+  let container: Container;
+
+  beforeAll(async () => {
+    setWorkspaceDir(repoRoot);
+    container = await createContainer({ testName: 'claude-code-isolated' });
+    await container.login();
+  });
+
+  afterAll(async () => {
+    await container?.destroy();
+  });
+
+  it('install', async () => {
+    const result = await container.exec('poe-code install claude-code');
+    expect(result).toHaveExitCode(0);
+  });
+
+  it('test --isolated', async () => {
+    const result = await container.exec('poe-code test claude-code --isolated');
+    expect(result).toSucceedWith('CLAUDE_CODE_OK');
   });
 });

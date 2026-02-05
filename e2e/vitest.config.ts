@@ -4,6 +4,7 @@ import path from 'path';
 export default defineConfig({
   resolve: {
     alias: {
+      '@poe-code/e2e-docker-test-runner/matchers': path.resolve(__dirname, '../packages/e2e-docker-test-runner/src/matchers.ts'),
       '@poe-code/e2e-docker-test-runner': path.resolve(__dirname, '../packages/e2e-docker-test-runner/src/index.ts'),
     },
   },
@@ -14,5 +15,6 @@ export default defineConfig({
     include: ['*.test.ts'],
     maxWorkers: 1,
     globalSetup: './setup.ts',
+    setupFiles: ['@poe-code/e2e-docker-test-runner/matchers'],
   },
 });
