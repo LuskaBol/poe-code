@@ -13,6 +13,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./matchers": {
+      "import": "./dist/matchers.js",
+      "types": "./dist/matchers.d.ts"
     }
   },
   "scripts": {
