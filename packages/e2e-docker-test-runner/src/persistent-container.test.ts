@@ -446,6 +446,146 @@ describe('exec', () => {
   });
 });
 
+describe('readFile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vol.reset();
+  });
+
+  it('calls exec with cat <path> and returns stdout', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: '{"key": "value"}\n',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    const content = await container.readFile('/root/.config/settings.json');
+
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      'docker',
+      ['exec', 'test-container-id', 'sh', '-c', 'cat /root/.config/settings.json'],
+      { encoding: 'utf-8', stdio: 'pipe' }
+    );
+    expect(content).toBe('{"key": "value"}');
+  });
+
+  it('throws with clear message if file does not exist', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 1,
+      stdout: '',
+      stderr: 'cat: /no/such/file: No such file or directory\n',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    await expect(container.readFile('/no/such/file')).rejects.toThrow(
+      'Failed to read file "/no/such/file"'
+    );
+    await expect(container.readFile('/no/such/file')).rejects.toThrow(
+      'No such file or directory'
+    );
+  });
+});
+
+describe('fileExists', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vol.reset();
+  });
+
+  it('returns true when file exists (exit code 0)', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: '',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    const exists = await container.fileExists('/root/.config/settings.json');
+
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      'docker',
+      ['exec', 'test-container-id', 'sh', '-c', 'test -f /root/.config/settings.json'],
+      { encoding: 'utf-8', stdio: 'pipe' }
+    );
+    expect(exists).toBe(true);
+  });
+
+  it('returns false when file does not exist (non-zero exit)', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 1,
+      stdout: '',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    const exists = await container.fileExists('/no/such/file');
+
+    expect(exists).toBe(false);
+  });
+});
+
+describe('writeFile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vol.reset();
+  });
+
+  it('calls docker exec -i with content piped to stdin', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: '',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    await container.writeFile('/root/.config/settings.json', '{"key": "value"}');
+
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      'docker',
+      ['exec', '-i', 'test-container-id', 'sh', '-c', 'cat > /root/.config/settings.json'],
+      { encoding: 'utf-8', input: '{"key": "value"}', stdio: ['pipe', 'pipe', 'pipe'] }
+    );
+  });
+
+  it('throws when write fails', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 1,
+      stdout: '',
+      stderr: 'Permission denied\n',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    await expect(
+      container.writeFile('/readonly/file', 'content')
+    ).rejects.toThrow('Failed to write file "/readonly/file": Permission denied');
+  });
+});
+
 describe('execOrThrow', () => {
   beforeEach(() => {
     vi.clearAllMocks();

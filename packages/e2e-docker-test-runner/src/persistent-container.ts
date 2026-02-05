@@ -145,12 +145,32 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
       throw new Error('Not implemented — see US-005');
     },
 
-    async fileExists(_path: string): Promise<boolean> {
-      throw new Error('Not implemented — see US-004');
+    async fileExists(filePath: string): Promise<boolean> {
+      const result = await exec(`test -f ${filePath}`);
+      return result.exitCode === 0;
     },
 
-    async readFile(_path: string): Promise<string> {
-      throw new Error('Not implemented — see US-004');
+    async readFile(filePath: string): Promise<string> {
+      const result = await exec(`cat ${filePath}`);
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `Failed to read file "${filePath}": ${result.stderr}`
+        );
+      }
+      return result.stdout;
+    },
+
+    async writeFile(filePath: string, content: string): Promise<void> {
+      const result = spawnSync(engine, ['exec', '-i', containerId, 'sh', '-c', `cat > ${filePath}`], {
+        encoding: 'utf-8',
+        input: content,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      if ((result.status ?? 1) !== 0) {
+        throw new Error(
+          `Failed to write file "${filePath}": ${(result.stderr ?? '').trim()}`
+        );
+      }
     },
   };
 }
