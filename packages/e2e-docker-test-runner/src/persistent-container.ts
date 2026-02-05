@@ -14,6 +14,7 @@ import {
 import { mkdirSync, existsSync } from 'node:fs';
 
 const CONTAINER_LABEL = 'poe-e2e-test-runner=true';
+export const CONTAINER_PATH = '/root/.local/bin:/root/.claude/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
 function ensureCacheDirs(): void {
   for (const dir of [NPM_CACHE_DIR, UV_CACHE_DIR, LOCAL_BIN_DIR]) {
@@ -47,6 +48,8 @@ export function buildCreateArgs(config: {
     '-w', MOUNT_TARGET,
   ];
 
+  args.push('-e', `PATH=${CONTAINER_PATH}`);
+
   if (config.apiKey) {
     args.push('-e', 'POE_API_KEY');
     args.push('-e', 'POE_CODE_STDERR_LOGS=1');
@@ -55,6 +58,10 @@ export function buildCreateArgs(config: {
   args.push(config.image, 'sleep', '86400');
 
   return args;
+}
+
+export function buildExecArgs(containerId: string, command: string): string[] {
+  return ['exec', containerId, 'sh', '-c', command];
 }
 
 export async function createContainer(options: ContainerOptions = {}): Promise<Container> {
@@ -102,6 +109,19 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
     throw new Error(`Failed to start container: ${startResult.stderr}`);
   }
 
+  const exec = async (command: string): Promise<ExecResult> => {
+    const execArgs = buildExecArgs(containerId, command);
+    const result = spawnSync(engine, execArgs, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    });
+    return {
+      exitCode: result.status ?? 1,
+      stdout: (result.stdout ?? '').trim(),
+      stderr: (result.stderr ?? '').trim(),
+    };
+  };
+
   return {
     id: containerId,
 
@@ -109,12 +129,16 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
       spawnSync(engine, ['rm', '-f', containerId], { stdio: 'ignore' });
     },
 
-    async exec(_command: string): Promise<ExecResult> {
-      throw new Error('Not implemented — see US-003');
-    },
+    exec,
 
-    async execOrThrow(_command: string): Promise<ExecResult> {
-      throw new Error('Not implemented — see US-003');
+    async execOrThrow(command: string): Promise<ExecResult> {
+      const result = await exec(command);
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `Command failed: "${command}" (exit code ${result.exitCode})\n${result.stderr}`
+        );
+      }
+      return result;
     },
 
     async login(): Promise<void> {

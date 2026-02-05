@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { vol } from 'memfs';
-import { buildCreateArgs } from './persistent-container.js';
+import { buildCreateArgs, buildExecArgs, CONTAINER_PATH } from './persistent-container.js';
 import { MOUNT_TARGET } from './container.js';
 
 vi.mock('node:fs', async () => {
@@ -100,6 +100,24 @@ describe('buildCreateArgs', () => {
   it('does not add env vars when apiKey is null', () => {
     const args = buildCreateArgs(baseConfig);
     expect(args).not.toContain('POE_API_KEY');
+  });
+
+  it('always sets PATH env for local bins and uv', () => {
+    const args = buildCreateArgs(baseConfig);
+    expect(args).toContain(`PATH=${CONTAINER_PATH}`);
+  });
+});
+
+describe('buildExecArgs', () => {
+  it('constructs docker exec with sh -c', () => {
+    const args = buildExecArgs('abc123', 'echo hello');
+    expect(args).toEqual(['exec', 'abc123', 'sh', '-c', 'echo hello']);
+  });
+
+  it('passes command as single sh -c argument', () => {
+    const args = buildExecArgs('cid', 'ls -la /root && cat /etc/hosts');
+    expect(args[3]).toBe('-c');
+    expect(args[4]).toBe('ls -la /root && cat /etc/hosts');
   });
 });
 
@@ -287,6 +305,191 @@ describe('destroy', () => {
       'docker',
       ['rm', '-f', 'my-container-id'],
       { stdio: 'ignore' }
+    );
+  });
+});
+
+function setupContainerMock() {
+  return async () => {
+    const { spawnSync } = await import('node:child_process');
+    const mockSpawnSync = vi.mocked(spawnSync);
+
+    mockSpawnSync.mockImplementation((_cmd, args) => {
+      const argsArr = args as string[];
+      if (argsArr[0] === 'create') {
+        return {
+          status: 0,
+          stdout: 'test-container-id\n',
+          stderr: '',
+          pid: 1,
+          output: [],
+          signal: null,
+        };
+      }
+      return {
+        status: 0,
+        stdout: '',
+        stderr: '',
+        pid: 1,
+        output: [],
+        signal: null,
+      };
+    });
+
+    const { createContainer } = await import('./persistent-container.js');
+    const container = await createContainer({ image: 'poe-code-e2e:abc123' });
+    mockSpawnSync.mockClear();
+
+    return { container, mockSpawnSync };
+  };
+}
+
+describe('exec', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vol.reset();
+  });
+
+  it('calls docker exec with sh -c and the command', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: 'hello\n',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    await container.exec('echo hello');
+
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      'docker',
+      ['exec', 'test-container-id', 'sh', '-c', 'echo hello'],
+      { encoding: 'utf-8', stdio: 'pipe' }
+    );
+  });
+
+  it('returns trimmed stdout and stderr', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: '  output with spaces  \n',
+      stderr: '  some warning  \n',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    const result = await container.exec('some-command');
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: 'output with spaces',
+      stderr: 'some warning',
+    });
+  });
+
+  it('returns non-zero exit code without throwing', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 42,
+      stdout: '',
+      stderr: 'command not found\n',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    const result = await container.exec('bad-command');
+
+    expect(result.exitCode).toBe(42);
+    expect(result.stderr).toBe('command not found');
+  });
+
+  it('defaults exitCode to 1 when status is null', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: null,
+      stdout: '',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: 'SIGTERM',
+    });
+
+    const result = await container.exec('killed-command');
+
+    expect(result.exitCode).toBe(1);
+  });
+
+  it('handles null stdout/stderr gracefully', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: null as unknown as string,
+      stderr: null as unknown as string,
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    const result = await container.exec('some-command');
+
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('');
+  });
+});
+
+describe('execOrThrow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vol.reset();
+  });
+
+  it('returns result on exit code 0', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: 'success output\n',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    const result = await container.execOrThrow('echo ok');
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: 'success output',
+      stderr: '',
+    });
+  });
+
+  it('throws on non-zero exit code with command, code, and stderr', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 127,
+      stdout: '',
+      stderr: 'sh: bad-cmd: not found\n',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    await expect(container.execOrThrow('bad-cmd')).rejects.toThrow(
+      'Command failed: "bad-cmd" (exit code 127)'
+    );
+    await expect(container.execOrThrow('bad-cmd')).rejects.toThrow(
+      'sh: bad-cmd: not found'
     );
   });
 });
