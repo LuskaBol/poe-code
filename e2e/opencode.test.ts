@@ -1,31 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createContainer, setWorkspaceDir } from '@poe-code/e2e-docker-test-runner';
-import type { Container } from '@poe-code/e2e-docker-test-runner';
+import { describe, it, expect } from 'vitest';
+import { useContainer } from '@poe-code/e2e-docker-test-runner';
 import { join } from 'node:path';
 
 const repoRoot = join(import.meta.dirname, '..');
 
 describe('opencode', () => {
-  let container: Container;
+  const container = useContainer({ workspaceDir: repoRoot, testName: 'opencode' });
 
-  beforeAll(async () => {
-    setWorkspaceDir(repoRoot);
-    container = await createContainer({ testName: 'opencode' });
-    await container.login();
-  });
-
-  afterAll(async () => {
-    await container?.destroy();
-  });
-
-  it('install', async () => {
-    const result = await container.exec('poe-code install opencode');
-    expect(result).toHaveExitCode(0);
-    const which = await container.exec('which opencode');
-    expect(which).toHaveExitCode(0);
-  });
-
-  it('configure', async () => {
+  it('configure and test', async () => {
     const result = await container.exec('poe-code configure opencode --yes');
     expect(result).toHaveExitCode(0);
 
@@ -40,34 +22,13 @@ describe('opencode', () => {
     const auth = JSON.parse(authRaw);
     expect(auth).toHaveProperty('poe.type');
     expect(auth).toHaveProperty('poe.key');
-  });
 
-  it('test', async () => {
-    const result = await container.exec('poe-code test opencode');
-    expect(result).toSucceedWith('OPEN_CODE_OK');
-  });
-});
-
-describe('opencode isolated', () => {
-  let container: Container;
-
-  beforeAll(async () => {
-    setWorkspaceDir(repoRoot);
-    container = await createContainer({ testName: 'opencode-isolated' });
-    await container.login();
-  });
-
-  afterAll(async () => {
-    await container?.destroy();
-  });
-
-  it('install', async () => {
-    const result = await container.exec('poe-code install opencode');
-    expect(result).toHaveExitCode(0);
+    const testResult = await container.exec('poe-code test opencode');
+    expect(testResult).toSucceedWith('Tested OpenCode CLI.');
   });
 
   it('test --isolated', async () => {
     const result = await container.exec('poe-code test opencode --isolated');
-    expect(result).toSucceedWith('OPEN_CODE_OK');
+    expect(result).toSucceedWith('Tested OpenCode CLI.');
   });
 });

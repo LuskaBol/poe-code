@@ -20,4 +20,10 @@ COPY scripts/ ./scripts/
 # Build and install globally
 RUN npm run build && npm install -g .
 
+# Pre-install all agents
+RUN poe-code install claude-code && \
+    poe-code install codex && \
+    poe-code install kimi && \
+    poe-code install opencode
+
 WORKDIR /workspace

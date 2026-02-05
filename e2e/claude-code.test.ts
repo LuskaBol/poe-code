@@ -1,31 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createContainer, setWorkspaceDir } from '@poe-code/e2e-docker-test-runner';
-import type { Container } from '@poe-code/e2e-docker-test-runner';
+import { describe, it, expect } from 'vitest';
+import { useContainer } from '@poe-code/e2e-docker-test-runner';
 import { join } from 'node:path';
 
 const repoRoot = join(import.meta.dirname, '..');
 
 describe('claude-code', () => {
-  let container: Container;
+  const container = useContainer({ workspaceDir: repoRoot, testName: 'claude-code' });
 
-  beforeAll(async () => {
-    setWorkspaceDir(repoRoot);
-    container = await createContainer({ testName: 'claude-code' });
-    await container.login();
-  });
-
-  afterAll(async () => {
-    await container?.destroy();
-  });
-
-  it('install', async () => {
-    const result = await container.exec('poe-code install claude-code');
-    expect(result).toHaveExitCode(0);
-    const which = await container.exec('which claude');
-    expect(which).toHaveExitCode(0);
-  });
-
-  it('configure', async () => {
+  it('configure and test', async () => {
     const result = await container.exec('poe-code configure claude-code --yes');
     expect(result).toHaveExitCode(0);
 
@@ -34,34 +16,13 @@ describe('claude-code', () => {
     const config = JSON.parse(raw);
     expect(config).toHaveProperty('apiKeyHelper');
     expect(config).toHaveProperty('env.ANTHROPIC_BASE_URL');
-  });
 
-  it('test', async () => {
-    const result = await container.exec('poe-code test claude-code');
-    expect(result).toSucceedWith('CLAUDE_CODE_OK');
-  });
-});
-
-describe('claude-code isolated', () => {
-  let container: Container;
-
-  beforeAll(async () => {
-    setWorkspaceDir(repoRoot);
-    container = await createContainer({ testName: 'claude-code-isolated' });
-    await container.login();
-  });
-
-  afterAll(async () => {
-    await container?.destroy();
-  });
-
-  it('install', async () => {
-    const result = await container.exec('poe-code install claude-code');
-    expect(result).toHaveExitCode(0);
+    const testResult = await container.exec('poe-code test claude-code');
+    expect(testResult).toSucceedWith('Tested Claude Code.');
   });
 
   it('test --isolated', async () => {
     const result = await container.exec('poe-code test claude-code --isolated');
-    expect(result).toSucceedWith('CLAUDE_CODE_OK');
+    expect(result).toSucceedWith('Tested Claude Code.');
   });
 });
