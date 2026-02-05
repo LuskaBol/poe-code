@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process';
 import chalk from 'chalk';
 import { detectEngine } from './engine.js';
 import { hasApiKey } from './credentials.js';
+import { setResolvedContext, detectRunningContext } from './context.js';
 import type { Engine } from './types.js';
 
 const LABEL = 'poe-e2e-test-runner';
@@ -70,30 +71,13 @@ function checkEngineInstalled(): CheckResult {
   }
 }
 
-function findRunningColimaContext(): string | null {
-  try {
-    // Check for any running colima profiles (output is one JSON object per line)
-    const output = execSync('colima list --json', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
-    const lines = output.trim().split('\n').filter(Boolean);
-    for (const line of lines) {
-      const profile = JSON.parse(line);
-      if (profile.status === 'Running' && profile.runtime === 'docker') {
-        const name = profile.name || profile.profile;
-        return name === 'default' ? 'colima' : `colima-${name}`;
-      }
-    }
-  } catch {
-    // colima not installed or list failed
-  }
-  return null;
-}
-
 function checkDaemonRunning(engine: Engine): CheckResult {
   // First check if there's a running colima profile we should use
-  const runningContext = findRunningColimaContext();
+  const runningContext = detectRunningContext();
   if (runningContext && engine === 'docker') {
     try {
       execSync(`${engine} --context ${runningContext} info`, { stdio: 'ignore' });
+      setResolvedContext(runningContext);
       return { name: 'Docker daemon running', passed: true, message: `Using ${runningContext}` };
     } catch {
       // Fall through to other checks
@@ -106,6 +90,18 @@ function checkDaemonRunning(engine: Engine): CheckResult {
   } catch {
     // Try to auto-start colima if available
     if (tryStartColima()) {
+      // Re-discover context after starting colima
+      const newContext = detectRunningContext();
+      if (newContext && engine === 'docker') {
+        try {
+          execSync(`${engine} --context ${newContext} info`, { stdio: 'ignore' });
+          setResolvedContext(newContext);
+          return { name: 'Docker daemon running', passed: true, message: `Started colima (${newContext})` };
+        } catch {
+          // Fall through
+        }
+      }
+
       try {
         execSync(`${engine} info`, { stdio: 'ignore' });
         return { name: 'Docker daemon running', passed: true, message: 'Started colima' };
@@ -163,7 +159,7 @@ function checkApiKey(): CheckResult {
 
 export async function cleanupOrphans(engine?: Engine, context?: string): Promise<number> {
   const eng = engine ?? detectEngine();
-  const ctx = context ?? (eng === 'docker' ? findRunningColimaContext() : null);
+  const ctx = context ?? (eng === 'docker' ? detectRunningContext() : null);
   const contextArg = ctx ? `--context ${ctx}` : '';
 
   try {

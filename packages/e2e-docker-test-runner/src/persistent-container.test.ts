@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { vol } from 'memfs';
 import { buildCreateArgs, buildExecArgs, CONTAINER_PATH } from './persistent-container.js';
 import { MOUNT_TARGET } from './container.js';
+import { setResolvedContext } from './context.js';
 
 vi.mock('node:fs', async () => {
   const memfs = await import('memfs');
@@ -389,6 +390,7 @@ describe('exec', () => {
       exitCode: 0,
       stdout: 'output with spaces',
       stderr: 'some warning',
+      command: 'some-command',
     });
   });
 
@@ -610,6 +612,7 @@ describe('execOrThrow', () => {
       exitCode: 0,
       stdout: 'success output',
       stderr: '',
+      command: 'echo ok',
     });
   });
 
@@ -713,5 +716,149 @@ describe('login', () => {
     });
 
     await expect(container.login()).rejects.toThrow('Command failed');
+  });
+});
+
+describe('docker context support', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vol.reset();
+    setResolvedContext(null);
+  });
+
+  it('prepends --context args to docker create when context is set', async () => {
+    setResolvedContext('colima-poe-runner');
+
+    const { spawnSync } = await import('node:child_process');
+    const mockSpawnSync = vi.mocked(spawnSync);
+
+    mockSpawnSync.mockImplementation((_cmd, args) => {
+      const argsArr = args as string[];
+      if (argsArr.includes('create')) {
+        return { status: 0, stdout: 'ctx-container\n', stderr: '', pid: 1, output: [], signal: null };
+      }
+      return { status: 0, stdout: '', stderr: '', pid: 1, output: [], signal: null };
+    });
+
+    const { createContainer } = await import('./persistent-container.js');
+    await createContainer({ image: 'poe-code-e2e:abc123' });
+
+    const createCall = mockSpawnSync.mock.calls.find(
+      (call) => (call[1] as string[]).includes('create')
+    );
+    expect(createCall).toBeDefined();
+    const createArgs = createCall![1] as string[];
+    expect(createArgs[0]).toBe('--context');
+    expect(createArgs[1]).toBe('colima-poe-runner');
+    expect(createArgs[2]).toBe('create');
+  });
+
+  it('prepends --context args to docker start', async () => {
+    setResolvedContext('colima-poe-runner');
+
+    const { spawnSync } = await import('node:child_process');
+    const mockSpawnSync = vi.mocked(spawnSync);
+
+    mockSpawnSync.mockImplementation((_cmd, args) => {
+      const argsArr = args as string[];
+      if (argsArr.includes('create')) {
+        return { status: 0, stdout: 'ctx-container\n', stderr: '', pid: 1, output: [], signal: null };
+      }
+      return { status: 0, stdout: '', stderr: '', pid: 1, output: [], signal: null };
+    });
+
+    const { createContainer } = await import('./persistent-container.js');
+    await createContainer({ image: 'poe-code-e2e:abc123' });
+
+    const startCall = mockSpawnSync.mock.calls.find(
+      (call) => (call[1] as string[]).includes('start')
+    );
+    expect(startCall).toBeDefined();
+    const startArgs = startCall![1] as string[];
+    expect(startArgs[0]).toBe('--context');
+    expect(startArgs[1]).toBe('colima-poe-runner');
+    expect(startArgs[2]).toBe('start');
+  });
+
+  it('prepends --context args to docker exec', async () => {
+    setResolvedContext('colima-poe-runner');
+
+    const { spawnSync } = await import('node:child_process');
+    const mockSpawnSync = vi.mocked(spawnSync);
+
+    mockSpawnSync.mockImplementation((_cmd, args) => {
+      const argsArr = args as string[];
+      if (argsArr.includes('create')) {
+        return { status: 0, stdout: 'ctx-container\n', stderr: '', pid: 1, output: [], signal: null };
+      }
+      return { status: 0, stdout: 'output\n', stderr: '', pid: 1, output: [], signal: null };
+    });
+
+    const { createContainer } = await import('./persistent-container.js');
+    const container = await createContainer({ image: 'poe-code-e2e:abc123' });
+
+    mockSpawnSync.mockClear();
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: 'hello\n', stderr: '', pid: 1, output: [], signal: null });
+
+    await container.exec('echo hello');
+
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      'docker',
+      ['--context', 'colima-poe-runner', 'exec', 'ctx-container', 'sh', '-c', 'echo hello'],
+      { encoding: 'utf-8', stdio: 'pipe' }
+    );
+  });
+
+  it('prepends --context args to docker rm on destroy', async () => {
+    setResolvedContext('colima-poe-runner');
+
+    const { spawnSync } = await import('node:child_process');
+    const mockSpawnSync = vi.mocked(spawnSync);
+
+    mockSpawnSync.mockImplementation((_cmd, args) => {
+      const argsArr = args as string[];
+      if (argsArr.includes('create')) {
+        return { status: 0, stdout: 'ctx-container\n', stderr: '', pid: 1, output: [], signal: null };
+      }
+      return { status: 0, stdout: '', stderr: '', pid: 1, output: [], signal: null };
+    });
+
+    const { createContainer } = await import('./persistent-container.js');
+    const container = await createContainer({ image: 'poe-code-e2e:abc123' });
+
+    mockSpawnSync.mockClear();
+
+    await container.destroy();
+
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      'docker',
+      ['--context', 'colima-poe-runner', 'rm', '-f', 'ctx-container'],
+      { stdio: 'ignore' }
+    );
+  });
+
+  it('does not add context args when no context is set', async () => {
+    setResolvedContext(null);
+
+    const { spawnSync } = await import('node:child_process');
+    const mockSpawnSync = vi.mocked(spawnSync);
+
+    mockSpawnSync.mockImplementation((_cmd, args) => {
+      const argsArr = args as string[];
+      if (argsArr[0] === 'create') {
+        return { status: 0, stdout: 'no-ctx-container\n', stderr: '', pid: 1, output: [], signal: null };
+      }
+      return { status: 0, stdout: '', stderr: '', pid: 1, output: [], signal: null };
+    });
+
+    const { createContainer } = await import('./persistent-container.js');
+    await createContainer({ image: 'poe-code-e2e:abc123' });
+
+    const createCall = mockSpawnSync.mock.calls.find(
+      (call) => (call[1] as string[]).includes('create')
+    );
+    expect(createCall).toBeDefined();
+    const createArgs = createCall![1] as string[];
+    expect(createArgs[0]).toBe('create');
   });
 });

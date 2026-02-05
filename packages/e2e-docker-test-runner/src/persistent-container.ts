@@ -4,6 +4,7 @@ import type { Container, ContainerOptions, ExecResult } from './types.js';
 import { detectEngine } from './engine.js';
 import { ensureImage } from './image.js';
 import { getApiKey } from './credentials.js';
+import { getResolvedContext, buildContextArgs } from './context.js';
 import {
   MOUNT_TARGET,
   NPM_CACHE_DIR,
@@ -69,7 +70,9 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
   ensureCacheDirs();
 
   const engine = detectEngine();
-  const image = options.image ?? ensureImage(engine, workspace);
+  const context = getResolvedContext();
+  const ctxArgs = buildContextArgs(engine, context);
+  const image = options.image ?? ensureImage(engine, workspace, { context: context ?? undefined });
   const apiKey = getApiKey();
   const name = generateContainerName();
 
@@ -88,7 +91,7 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
     env.POE_API_KEY = apiKey;
   }
 
-  const createResult = spawnSync(engine, createArgs, {
+  const createResult = spawnSync(engine, [...ctxArgs, ...createArgs], {
     encoding: 'utf-8',
     env,
   });
@@ -99,19 +102,19 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
 
   const containerId = createResult.stdout.trim();
 
-  const startResult = spawnSync(engine, ['start', containerId], {
+  const startResult = spawnSync(engine, [...ctxArgs, 'start', containerId], {
     encoding: 'utf-8',
   });
 
   if (startResult.status !== 0) {
     // Clean up the created container on start failure
-    spawnSync(engine, ['rm', '-f', containerId], { stdio: 'ignore' });
+    spawnSync(engine, [...ctxArgs, 'rm', '-f', containerId], { stdio: 'ignore' });
     throw new Error(`Failed to start container: ${startResult.stderr}`);
   }
 
   const exec = async (command: string): Promise<ExecResult> => {
     const execArgs = buildExecArgs(containerId, command);
-    const result = spawnSync(engine, execArgs, {
+    const result = spawnSync(engine, [...ctxArgs, ...execArgs], {
       encoding: 'utf-8',
       stdio: 'pipe',
     });
@@ -119,33 +122,36 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
       exitCode: result.status ?? 1,
       stdout: (result.stdout ?? '').trim(),
       stderr: (result.stderr ?? '').trim(),
+      command,
     };
+  };
+
+  const execOrThrow = async (command: string): Promise<ExecResult> => {
+    const result = await exec(command);
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `Command failed: "${command}" (exit code ${result.exitCode})\n${result.stderr}`
+      );
+    }
+    return result;
   };
 
   return {
     id: containerId,
 
     destroy: async () => {
-      spawnSync(engine, ['rm', '-f', containerId], { stdio: 'ignore' });
+      spawnSync(engine, [...ctxArgs, 'rm', '-f', containerId], { stdio: 'ignore' });
     },
 
     exec,
 
-    async execOrThrow(command: string): Promise<ExecResult> {
-      const result = await exec(command);
-      if (result.exitCode !== 0) {
-        throw new Error(
-          `Command failed: "${command}" (exit code ${result.exitCode})\n${result.stderr}`
-        );
-      }
-      return result;
-    },
+    execOrThrow,
 
     async login(): Promise<void> {
       if (!apiKey) {
         throw new Error('No API key available. Set POE_API_KEY or POE_CODE_API_KEY environment variable.');
       }
-      await this.execOrThrow(`poe-code login --api-key '${apiKey}'`);
+      await execOrThrow(`poe-code login --api-key '${apiKey}'`);
     },
 
     async fileExists(filePath: string): Promise<boolean> {
@@ -164,7 +170,7 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
     },
 
     async writeFile(filePath: string, content: string): Promise<void> {
-      const result = spawnSync(engine, ['exec', '-i', containerId, 'sh', '-c', `cat > ${filePath}`], {
+      const result = spawnSync(engine, [...ctxArgs, 'exec', '-i', containerId, 'sh', '-c', `cat > ${filePath}`], {
         encoding: 'utf-8',
         input: content,
         stdio: ['pipe', 'pipe', 'pipe'],
