@@ -8,7 +8,7 @@ import { text, symbols } from "../src/index.js";
 
 export function render(): void {
   intro(text.intro("configure claude-code"));
-  log.message("Claude Code default model\n   Claude-Opus-4.5", {
+  log.message("Claude Code default model\n   Claude-Opus-4.6", {
     symbol: symbols.resolved
   });
   log.message("Configured Claude Code.", { symbol: symbols.success });

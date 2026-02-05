@@ -1,5 +1,5 @@
 export const FRONTIER_MODELS = [
-  "anthropic/claude-opus-4.5",
+  "anthropic/claude-opus-4.6",
   "anthropic/claude-sonnet-4.5",
   "openai/gpt-5.2",
   "google/gemini-3-pro"
@@ -15,7 +15,7 @@ export const DEFAULT_VIDEO_BOT = "google/veo-3.1";
 export const CLAUDE_CODE_VARIANTS = {
   haiku: "anthropic/claude-haiku-4.5",
   sonnet: "anthropic/claude-sonnet-4.5",
-  opus: "anthropic/claude-opus-4.5"
+  opus: "anthropic/claude-opus-4.6"
 } as const;
 
 export const DEFAULT_CLAUDE_CODE_MODEL = CLAUDE_CODE_VARIANTS.opus;

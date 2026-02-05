@@ -122,7 +122,7 @@ This is important: we don't need to match the entire stdout, just one line.
 | Config structure | `container.readFile('/root/.claude/settings.json')` | Valid JSON |
 | Config: apiKeyHelper | parsed config | `apiKeyHelper` field starts with `echo ` |
 | Config: env.ANTHROPIC_BASE_URL | parsed config | Non-empty URL string |
-| Config: model | parsed config | One of: `claude-haiku-4.5`, `claude-sonnet-4.5`, `claude-opus-4.5` |
+| Config: model | parsed config | One of: `claude-haiku-4.5`, `claude-sonnet-4.5`, `claude-opus-4.6` |
 | Post-configure message | `result.stdout` | Contains `vscode://settings/claudeCode.disableLoginPrompt` |
 
 **Expected config structure:**
@@ -132,11 +132,11 @@ This is important: we don't need to match the entire stdout, just one line.
   "env": {
     "ANTHROPIC_BASE_URL": "https://api.poe.com/v1"
   },
-  "model": "claude-opus-4.5"
+  "model": "claude-opus-4.6"
 }
 ```
 
-**Default model:** `anthropic/claude-opus-4.5` (stripped to `claude-opus-4.5`)
+**Default model:** `anthropic/claude-opus-4.6` (stripped to `claude-opus-4.6`)
 
 #### codex
 
@@ -271,7 +271,7 @@ api_key = "<api-key>"
 | Health check output | `result.stdout` | Contains `CLAUDE_CODE_OK` on a line |
 | Success message | `result.stdout` | Contains `Tested Claude Code.` |
 
-**Health check command:** `claude -p "Output exactly: CLAUDE_CODE_OK" --model claude-opus-4.5 --allowedTools Bash,Read --permission-mode acceptEdits --output-format text`
+**Health check command:** `claude -p "Output exactly: CLAUDE_CODE_OK" --model claude-opus-4.6 --allowedTools Bash,Read --permission-mode acceptEdits --output-format text`
 
 #### codex
 | What | How to check | Expected |
@@ -383,7 +383,7 @@ it('test', async () => {
 
 | Agent | Raw Default | Stripped (in config) |
 |-------|------------|---------------------|
-| claude-code | `anthropic/claude-opus-4.5` | `claude-opus-4.5` |
+| claude-code | `anthropic/claude-opus-4.6` | `claude-opus-4.6` |
 | codex | `openai/gpt-5.2-codex` | `gpt-5.2-codex` |
 | opencode | `anthropic/claude-sonnet-4.5` | `poe/claude-sonnet-4.5` (provider-prefixed) |
 | kimi | `novitaai/kimi-k2.5` | `poe/kimi-k2.5` (provider-prefixed) |

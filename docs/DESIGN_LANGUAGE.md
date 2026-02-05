@@ -76,7 +76,7 @@ Full layout with note and outro: intro, resolved prompts, success, note box, out
 import { intro, outro, note, log, symbols } from "@poe-code/design-system";
 
 intro("configure claude-code");
-log.message("Claude Code default model\n   Claude-Opus-4.5", { symbol: symbols.resolved });
+log.message("Claude Code default model\n   Claude-Opus-4.6", { symbol: symbols.resolved });
 log.message("Configured Claude Code.", { symbol: symbols.success });
 note("If using VSCode...\nvscode://settings/...", "Next steps.");
 outro("Problems? https://...");

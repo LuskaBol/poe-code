@@ -88,9 +88,9 @@ describe("createLoggerFactory", () => {
   it("renders resolved option with label and value", () => {
     const logger = createLoggerFactory().create();
 
-    logger.resolved("Model", "Claude-Opus-4.5");
+    logger.resolved("Model", "Claude-Opus-4.6");
 
-    expect(logMessage).toHaveBeenCalledWith("Model\n   Claude-Opus-4.5", {
+    expect(logMessage).toHaveBeenCalledWith("Model\n   Claude-Opus-4.6", {
       symbol: chalk.magenta("◇")
     });
   });

@@ -80,7 +80,7 @@ cursor agent --print --output-format stream-json "List three colors"
 
 **Example Events**:
 ```json
-{"type":"system","subtype":"init","apiKeySource":"login","cwd":"/path","session_id":"...","model":"Claude 4.5 Opus (Thinking)","permissionMode":"default"}
+{"type":"system","subtype":"init","apiKeySource":"login","cwd":"/path","session_id":"...","model":"Claude 4.6 Opus (Thinking)","permissionMode":"default"}
 {"type":"user","message":{"role":"user","content":[{"type":"text","text":"List three colors"}]},"session_id":"..."}
 {"type":"thinking","subtype":"delta","text":"The user is","session_id":"...","timestamp_ms":...}
 {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"1. Blue\n2. Red\n3. Green"}]},"session_id":"..."}
@@ -236,8 +236,8 @@ cursor agent models
 - gpt-5.2-codex (+ variants: high, low, xhigh, fast versions)
 - gpt-5.1-codex-max (+ high variant)
 - gpt-5.2 (+ high variant)
-- opus-4.5-thinking - Claude 4.5 Opus (Thinking) [Default]
-- opus-4.5 - Claude 4.5 Opus
+- opus-4.6-thinking - Claude 4.6 Opus (Thinking) [Default]
+- opus-4.6 - Claude 4.6 Opus
 - sonnet-4.5 - Claude 4.5 Sonnet
 - sonnet-4.5-thinking - Claude 4.5 Sonnet (Thinking)
 - gemini-3-pro / gemini-3-flash
