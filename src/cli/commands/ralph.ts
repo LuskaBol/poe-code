@@ -1,6 +1,8 @@
 import path from "node:path";
+import { execSync } from "node:child_process";
 import type { Command } from "commander";
-import { select, isCancel, cancel } from "@poe-code/design-system";
+import { select, isCancel, cancel, log } from "@poe-code/design-system";
+import { listWorktrees } from "@poe-code/worktree";
 import { loadConfig, ralphBuild, logActivity, resolvePlanPath, parsePlan } from "@poe-code/ralph";
 import {
   supportedAgents,
@@ -536,6 +538,63 @@ export function registerRalphCommand(
       } finally {
         resources.context.finalize();
       }
+    });
+
+  ralph
+    .command("worktree")
+    .description("Select and merge a worktree.")
+    .option("--agent <name>", "Agent to use for the merge")
+    .action(async function (this: Command) {
+      const cwd = container.env.cwd;
+      const registryFile = path.join(cwd, ".poe-code-ralph", "worktrees.yaml");
+
+      const worktrees = await listWorktrees(cwd, registryFile, {
+        fs: {
+          readFile: (p: string, enc: BufferEncoding) => container.fs.readFile(p, enc),
+          writeFile: (p: string, data: string, opts?: { encoding?: BufferEncoding }) =>
+            container.fs.writeFile(p, data, opts),
+          mkdir: (p: string, opts?: { recursive?: boolean }) => container.fs.mkdir(p, opts)
+        },
+        exec: (command: string, opts?: { cwd?: string }) =>
+          Promise.resolve({
+            stdout: execSync(command, {
+              cwd: opts?.cwd,
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"]
+            }),
+            stderr: ""
+          })
+      });
+
+      const mergeable = worktrees.filter(
+        (w) => w.status === "done" || w.status === "failed"
+      );
+
+      if (mergeable.length === 0) {
+        log.info("No mergeable worktrees found.");
+        return;
+      }
+
+      const selected = await select({
+        message: "Select a worktree to merge:",
+        options: mergeable.map((w) => ({
+          value: w.name,
+          label: `${w.name} (${w.branch}) [${w.status}]`
+        }))
+      });
+
+      if (isCancel(selected)) {
+        cancel("Operation cancelled");
+        return;
+      }
+
+      const entry = mergeable.find((w) => w.name === selected);
+      if (!entry || !entry.gitExists) {
+        throw new ValidationError(
+          `Worktree directory does not exist for "${selected as string}". It may have been manually removed.`
+        );
+      }
+
     });
 
   ralph
