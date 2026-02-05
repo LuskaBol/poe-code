@@ -67,6 +67,77 @@ async function loadRalphTemplates() {
   };
 }
 
+export type MergeContext = {
+  branchCommits: string;
+  baseCommits: string;
+  taskContext: string;
+  qualityGates: string;
+};
+
+export async function gatherMergeContext(
+  entry: {
+    branch: string;
+    baseBranch: string;
+    source: string;
+    planPath?: string;
+    storyId?: string;
+    prompt?: string;
+  },
+  deps: {
+    exec: (command: string) => string;
+    readFile: (path: string, encoding: BufferEncoding) => Promise<string>;
+  }
+): Promise<MergeContext> {
+  let branchCommits = "";
+  try {
+    branchCommits = deps
+      .exec(`git log ${entry.baseBranch}..${entry.branch} --oneline`)
+      .trim();
+  } catch {
+    // Branch may not exist or have no commits
+  }
+
+  let baseCommits = "";
+  try {
+    baseCommits = deps
+      .exec(`git log ${entry.branch}..${entry.baseBranch} --oneline`)
+      .trim();
+  } catch {
+    // Branch may not exist or have no commits
+  }
+
+  let taskContext = "";
+  let qualityGates = "";
+
+  if (entry.source === "ralph-build" && entry.planPath && entry.storyId) {
+    try {
+      const content = await deps.readFile(entry.planPath, "utf8");
+      const plan = parsePlan(content);
+
+      const story = plan.stories.find((s) => s.id === entry.storyId);
+      if (story) {
+        const parts: string[] = [];
+        if (story.description) parts.push(story.description.trim());
+        if (story.acceptanceCriteria.length > 0) {
+          parts.push("Acceptance Criteria:");
+          parts.push(...story.acceptanceCriteria.map((c) => `- ${c}`));
+        }
+        taskContext = parts.join("\n");
+      }
+
+      if (plan.qualityGates.length > 0) {
+        qualityGates = plan.qualityGates.map((g) => `- ${g}`).join("\n");
+      }
+    } catch {
+      // Gracefully handle missing plan file or parse errors
+    }
+  } else if (entry.prompt) {
+    taskContext = entry.prompt;
+  }
+
+  return { branchCommits, baseCommits, taskContext, qualityGates };
+}
+
 const DEFAULT_RALPH_AGENT = "claude-code";
 
 type RalphBuildCommandOptions = {
@@ -594,6 +665,19 @@ export function registerRalphCommand(
           `Worktree directory does not exist for "${selected as string}". It may have been manually removed.`
         );
       }
+
+      await gatherMergeContext(entry, {
+        exec: (command: string) =>
+          execSync(command, {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"]
+          }),
+        readFile: (p: string, enc: BufferEncoding) =>
+          container.fs.readFile(
+            path.isAbsolute(p) ? p : path.resolve(cwd, p),
+            enc
+          )
+      });
 
     });
 

@@ -62,7 +62,7 @@ vi.mock("@poe-code/worktree", () => ({
   listWorktrees: mockListWorktrees
 }));
 
-import { registerRalphCommand } from "./ralph.js";
+import { registerRalphCommand, gatherMergeContext } from "./ralph.js";
 
 const cwd = "/repo";
 const homeDir = "/home/test";
@@ -294,5 +294,145 @@ describe("ralph worktree command", () => {
     await program.parseAsync(["node", "cli", "ralph", "worktree", "--agent", "claude-code"]);
 
     expect(designSelect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("gatherMergeContext", () => {
+  it("runs git log for branch and base commits", async () => {
+    const exec = vi.fn()
+      .mockReturnValueOnce("abc123 feat: add feature\ndef456 fix: bug fix\n")
+      .mockReturnValueOnce("789abc chore: update deps\n");
+    const readFile = vi.fn();
+    const entry = makeWorktree({
+      name: "wt",
+      status: "done",
+      branch: "feature/wt",
+      baseBranch: "main"
+    });
+
+    const result = await gatherMergeContext(entry, { exec, readFile });
+
+    expect(exec).toHaveBeenCalledWith("git log main..feature/wt --oneline");
+    expect(exec).toHaveBeenCalledWith("git log feature/wt..main --oneline");
+    expect(result.branchCommits).toBe("abc123 feat: add feature\ndef456 fix: bug fix");
+    expect(result.baseCommits).toBe("789abc chore: update deps");
+  });
+
+  it("extracts story context and quality gates for ralph-build worktrees", async () => {
+    const planYaml = [
+      "version: 1",
+      "project: test",
+      "goals: []",
+      "nonGoals: []",
+      "qualityGates:",
+      "  - npm run test",
+      "  - npm run lint",
+      "stories:",
+      "  - id: S-001",
+      "    title: Test story",
+      "    status: done",
+      "    dependsOn: []",
+      "    description: |",
+      "      Story description here.",
+      "    acceptanceCriteria:",
+      "      - First criterion",
+      "      - Second criterion"
+    ].join("\n");
+
+    const exec = vi.fn().mockReturnValue("");
+    const readFile = vi.fn().mockResolvedValue(planYaml);
+    const entry = makeWorktree({
+      name: "wt",
+      status: "done",
+      source: "ralph-build",
+      planPath: "/repo/plan.yaml",
+      storyId: "S-001"
+    });
+
+    const result = await gatherMergeContext(entry, { exec, readFile });
+
+    expect(readFile).toHaveBeenCalledWith("/repo/plan.yaml", "utf8");
+    expect(result.taskContext).toContain("Story description here.");
+    expect(result.taskContext).toContain("Acceptance Criteria:");
+    expect(result.taskContext).toContain("- First criterion");
+    expect(result.taskContext).toContain("- Second criterion");
+    expect(result.qualityGates).toBe("- npm run test\n- npm run lint");
+  });
+
+  it("uses prompt for spawn worktrees", async () => {
+    const exec = vi.fn().mockReturnValue("");
+    const readFile = vi.fn();
+    const entry = makeWorktree({
+      name: "wt",
+      status: "done",
+      source: "spawn",
+      prompt: "Implement the login feature"
+    });
+
+    const result = await gatherMergeContext(entry, { exec, readFile });
+
+    expect(result.taskContext).toBe("Implement the login feature");
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("falls back to empty context when plan file is missing", async () => {
+    const exec = vi.fn().mockReturnValue("");
+    const readFile = vi.fn().mockRejectedValue(new Error("ENOENT"));
+    const entry = makeWorktree({
+      name: "wt",
+      status: "done",
+      source: "ralph-build",
+      planPath: "/repo/missing-plan.yaml",
+      storyId: "S-001"
+    });
+
+    const result = await gatherMergeContext(entry, { exec, readFile });
+
+    expect(result.taskContext).toBe("");
+    expect(result.qualityGates).toBe("");
+  });
+
+  it("returns empty commits when git log fails", async () => {
+    const exec = vi.fn().mockImplementation(() => {
+      throw new Error("git error");
+    });
+    const readFile = vi.fn();
+    const entry = makeWorktree({ name: "wt", status: "done" });
+
+    const result = await gatherMergeContext(entry, { exec, readFile });
+
+    expect(result.branchCommits).toBe("");
+    expect(result.baseCommits).toBe("");
+  });
+
+  it("returns quality gates even when story is not found in plan", async () => {
+    const planYaml = [
+      "version: 1",
+      "project: test",
+      "goals: []",
+      "nonGoals: []",
+      "qualityGates:",
+      "  - npm run test",
+      "stories:",
+      "  - id: S-999",
+      "    title: Other story",
+      "    status: open",
+      "    dependsOn: []"
+    ].join("\n");
+
+    const exec = vi.fn().mockReturnValue("");
+    const readFile = vi.fn().mockResolvedValue(planYaml);
+    const entry = makeWorktree({
+      name: "wt",
+      status: "done",
+      source: "ralph-build",
+      planPath: "/repo/plan.yaml",
+      storyId: "S-001"
+    });
+
+    const result = await gatherMergeContext(entry, { exec, readFile });
+
+    expect(result.taskContext).toBe("");
+    expect(result.qualityGates).toBe("- npm run test");
   });
 });
