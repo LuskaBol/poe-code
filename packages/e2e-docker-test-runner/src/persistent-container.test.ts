@@ -633,3 +633,85 @@ describe('execOrThrow', () => {
     );
   });
 });
+
+describe('login', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vol.reset();
+    const { getApiKey } = await import('./credentials.js');
+    vi.mocked(getApiKey).mockReturnValue('test-api-key');
+  });
+
+  it('calls execOrThrow with poe-code login --api-key command', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: 'Logged in successfully\n',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    await container.login();
+
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      'docker',
+      ['exec', 'test-container-id', 'sh', '-c', "poe-code login --api-key 'test-api-key'"],
+      { encoding: 'utf-8', stdio: 'pipe' }
+    );
+  });
+
+  it('throws if no API key is available', async () => {
+    const { getApiKey } = await import('./credentials.js');
+    vi.mocked(getApiKey).mockReturnValue(null);
+
+    const { spawnSync } = await import('node:child_process');
+    const mockSpawnSync = vi.mocked(spawnSync);
+
+    mockSpawnSync.mockImplementation((_cmd, args) => {
+      const argsArr = args as string[];
+      if (argsArr[0] === 'create') {
+        return {
+          status: 0,
+          stdout: 'no-key-container\n',
+          stderr: '',
+          pid: 1,
+          output: [],
+          signal: null,
+        };
+      }
+      return {
+        status: 0,
+        stdout: '',
+        stderr: '',
+        pid: 1,
+        output: [],
+        signal: null,
+      };
+    });
+
+    const { createContainer } = await import('./persistent-container.js');
+    const container = await createContainer({ image: 'poe-code-e2e:abc123' });
+
+    await expect(container.login()).rejects.toThrow(
+      'No API key available'
+    );
+  });
+
+  it('propagates execOrThrow errors on login failure', async () => {
+    const { container, mockSpawnSync } = await setupContainerMock()();
+
+    mockSpawnSync.mockReturnValue({
+      status: 1,
+      stdout: '',
+      stderr: 'Login failed: invalid key\n',
+      pid: 1,
+      output: [],
+      signal: null,
+    });
+
+    await expect(container.login()).rejects.toThrow('Command failed');
+  });
+});

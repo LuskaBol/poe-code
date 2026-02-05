@@ -142,7 +142,10 @@ export async function createContainer(options: ContainerOptions = {}): Promise<C
     },
 
     async login(): Promise<void> {
-      throw new Error('Not implemented — see US-005');
+      if (!apiKey) {
+        throw new Error('No API key available. Set POE_API_KEY or POE_CODE_API_KEY environment variable.');
+      }
+      await this.execOrThrow(`poe-code login --api-key '${apiKey}'`);
     },
 
     async fileExists(filePath: string): Promise<boolean> {
