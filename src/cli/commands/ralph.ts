@@ -2,7 +2,8 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import type { Command } from "commander";
 import { select, isCancel, cancel, log } from "@poe-code/design-system";
-import { listWorktrees } from "@poe-code/worktree";
+import { listWorktrees, updateWorktreeStatus } from "@poe-code/worktree";
+import { spawnInteractive } from "@poe-code/agent-spawn";
 import { loadConfig, ralphBuild, logActivity, resolvePlanPath, parsePlan } from "@poe-code/ralph";
 import {
   supportedAgents,
@@ -666,7 +667,9 @@ export function registerRalphCommand(
         );
       }
 
-      await gatherMergeContext(entry, {
+      const options = this.opts<{ agent?: string }>();
+
+      const context = await gatherMergeContext(entry, {
         exec: (command: string) =>
           execSync(command, {
             encoding: "utf8",
@@ -678,6 +681,40 @@ export function registerRalphCommand(
             enc
           )
       });
+
+      const { default: mergeTemplate } = await templateImports.promptWorktreeMerge();
+      const renderedPrompt = renderTemplate(mergeTemplate, {
+        WORKTREE_NAME: entry.name,
+        WORKTREE_PATH: entry.path,
+        WORKTREE_BRANCH: entry.branch,
+        BASE_BRANCH: entry.baseBranch,
+        MAIN_CWD: cwd,
+        TASK_CONTEXT: context.taskContext,
+        BRANCH_COMMITS: context.branchCommits,
+        BASE_COMMITS: context.baseCommits,
+        QUALITY_GATES: context.qualityGates
+      });
+
+      const agent = options.agent?.trim() || entry.agent;
+      const result = await spawnInteractive(agent, {
+        prompt: renderedPrompt,
+        cwd
+      });
+
+      const fsAdapter = {
+        readFile: (p: string, enc: BufferEncoding) => container.fs.readFile(p, enc),
+        writeFile: (p: string, data: string, opts?: { encoding?: BufferEncoding }) =>
+          container.fs.writeFile(p, data, opts),
+        mkdir: (p: string, opts?: { recursive?: boolean }) => container.fs.mkdir(p, opts)
+      };
+
+      if (result.exitCode === 0) {
+        await updateWorktreeStatus(registryFile, entry.name, "done", { fs: fsAdapter });
+        log.success(`Worktree "${entry.name}" merged successfully.`);
+      } else {
+        await updateWorktreeStatus(registryFile, entry.name, "failed", { fs: fsAdapter });
+        log.error(`Agent exited with code ${result.exitCode}. Worktree "${entry.name}" marked as failed.`);
+      }
 
     });
 

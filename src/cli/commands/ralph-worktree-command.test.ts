@@ -57,10 +57,34 @@ vi.mock("@poe-code/ralph", async () => {
 });
 
 const mockListWorktrees = vi.hoisted(() => vi.fn());
+const mockUpdateWorktreeStatus = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock("@poe-code/worktree", () => ({
-  listWorktrees: mockListWorktrees
+  listWorktrees: mockListWorktrees,
+  updateWorktreeStatus: mockUpdateWorktreeStatus
 }));
+
+const mockSpawnInteractive = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ exitCode: 0, stdout: "", stderr: "" })
+);
+
+vi.mock("@poe-code/agent-spawn", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@poe-code/agent-spawn")>();
+  return {
+    ...actual,
+    spawnInteractive: mockSpawnInteractive
+  };
+});
+
+const mockRenderTemplate = vi.hoisted(() => vi.fn().mockReturnValue("rendered-merge-prompt"));
+
+vi.mock("@poe-code/config-mutations", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@poe-code/config-mutations")>();
+  return {
+    ...actual,
+    renderTemplate: mockRenderTemplate
+  };
+});
 
 import { registerRalphCommand, gatherMergeContext } from "./ralph.js";
 
@@ -102,13 +126,24 @@ function makeWorktree(
 }
 
 describe("ralph worktree command", () => {
+  beforeEach(() => {
+    mockSpawnInteractive.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "" });
+    mockUpdateWorktreeStatus.mockResolvedValue(undefined);
+    mockRenderTemplate.mockReturnValue("rendered-merge-prompt");
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     designSelect.mockReset();
     designIsCancel.mockReset();
     designCancel.mockReset();
     designLog.info.mockReset();
+    designLog.success.mockReset();
+    designLog.error.mockReset();
     mockListWorktrees.mockReset();
+    mockSpawnInteractive.mockReset();
+    mockUpdateWorktreeStatus.mockReset();
+    mockRenderTemplate.mockReset();
   });
 
   it("presents mergeable worktrees for selection", async () => {
@@ -294,6 +329,154 @@ describe("ralph worktree command", () => {
     await program.parseAsync(["node", "cli", "ralph", "worktree", "--agent", "claude-code"]);
 
     expect(designSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders template with gathered context and spawns agent", async () => {
+    const wt = makeWorktree({ name: "wt-done", status: "done", agent: "codex" });
+    mockListWorktrees.mockResolvedValue([wt]);
+    designSelect.mockResolvedValueOnce("wt-done");
+    designIsCancel.mockReturnValue(false);
+    mockRenderTemplate.mockReturnValue("rendered-prompt");
+    mockSpawnInteractive.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "" });
+
+    const fs = createMemFs();
+    const container = createCliContainer({
+      fs,
+      prompts: vi.fn().mockResolvedValue({}),
+      env: { cwd, homeDir },
+      logger: () => {}
+    });
+    const program = createBaseProgram();
+    registerRalphCommand(program, container);
+
+    await program.parseAsync(["node", "cli", "ralph", "worktree"]);
+
+    expect(mockRenderTemplate).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        WORKTREE_NAME: "wt-done",
+        WORKTREE_PATH: wt.path,
+        WORKTREE_BRANCH: wt.branch,
+        BASE_BRANCH: "main",
+        MAIN_CWD: cwd
+      })
+    );
+    expect(mockSpawnInteractive).toHaveBeenCalledWith("codex", {
+      prompt: "rendered-prompt",
+      cwd
+    });
+  });
+
+  it("uses worktree's stored agent by default", async () => {
+    mockListWorktrees.mockResolvedValue([
+      makeWorktree({ name: "wt-done", status: "done", agent: "claude-code" })
+    ]);
+    designSelect.mockResolvedValueOnce("wt-done");
+    designIsCancel.mockReturnValue(false);
+    mockRenderTemplate.mockReturnValue("rendered-prompt");
+    mockSpawnInteractive.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "" });
+
+    const fs = createMemFs();
+    const container = createCliContainer({
+      fs,
+      prompts: vi.fn().mockResolvedValue({}),
+      env: { cwd, homeDir },
+      logger: () => {}
+    });
+    const program = createBaseProgram();
+    registerRalphCommand(program, container);
+
+    await program.parseAsync(["node", "cli", "ralph", "worktree"]);
+
+    expect(mockSpawnInteractive).toHaveBeenCalledWith("claude-code", expect.any(Object));
+  });
+
+  it("overrides agent with --agent flag", async () => {
+    mockListWorktrees.mockResolvedValue([
+      makeWorktree({ name: "wt-done", status: "done", agent: "codex" })
+    ]);
+    designSelect.mockResolvedValueOnce("wt-done");
+    designIsCancel.mockReturnValue(false);
+    mockRenderTemplate.mockReturnValue("rendered-prompt");
+    mockSpawnInteractive.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "" });
+
+    const fs = createMemFs();
+    const container = createCliContainer({
+      fs,
+      prompts: vi.fn().mockResolvedValue({}),
+      env: { cwd, homeDir },
+      logger: () => {}
+    });
+    const program = createBaseProgram();
+    registerRalphCommand(program, container);
+
+    await program.parseAsync(["node", "cli", "ralph", "worktree", "--agent", "claude-code"]);
+
+    expect(mockSpawnInteractive).toHaveBeenCalledWith("claude-code", expect.any(Object));
+  });
+
+  it("updates status to done and logs success on exit 0", async () => {
+    mockListWorktrees.mockResolvedValue([
+      makeWorktree({ name: "wt-done", status: "done" })
+    ]);
+    designSelect.mockResolvedValueOnce("wt-done");
+    designIsCancel.mockReturnValue(false);
+    mockRenderTemplate.mockReturnValue("rendered-prompt");
+    mockSpawnInteractive.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "" });
+
+    const fs = createMemFs();
+    const container = createCliContainer({
+      fs,
+      prompts: vi.fn().mockResolvedValue({}),
+      env: { cwd, homeDir },
+      logger: () => {}
+    });
+    const program = createBaseProgram();
+    registerRalphCommand(program, container);
+
+    await program.parseAsync(["node", "cli", "ralph", "worktree"]);
+
+    expect(mockUpdateWorktreeStatus).toHaveBeenCalledWith(
+      "/repo/.poe-code-ralph/worktrees.yaml",
+      "wt-done",
+      "done",
+      expect.objectContaining({ fs: expect.any(Object) })
+    );
+    expect(designLog.success).toHaveBeenCalledWith(
+      expect.stringContaining("wt-done")
+    );
+  });
+
+  it("updates status to failed and shows error on non-zero exit", async () => {
+    mockListWorktrees.mockResolvedValue([
+      makeWorktree({ name: "wt-done", status: "done" })
+    ]);
+    designSelect.mockResolvedValueOnce("wt-done");
+    designIsCancel.mockReturnValue(false);
+    mockRenderTemplate.mockReturnValue("rendered-prompt");
+    mockSpawnInteractive.mockResolvedValue({ exitCode: 1, stdout: "", stderr: "" });
+
+    const fs = createMemFs();
+    const container = createCliContainer({
+      fs,
+      prompts: vi.fn().mockResolvedValue({}),
+      env: { cwd, homeDir },
+      logger: () => {}
+    });
+    const program = createBaseProgram();
+    registerRalphCommand(program, container);
+
+    await program.parseAsync(["node", "cli", "ralph", "worktree"]);
+
+    expect(mockUpdateWorktreeStatus).toHaveBeenCalledWith(
+      "/repo/.poe-code-ralph/worktrees.yaml",
+      "wt-done",
+      "failed",
+      expect.objectContaining({ fs: expect.any(Object) })
+    );
+    expect(designLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("wt-done")
+    );
   });
 });
 
