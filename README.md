@@ -35,7 +35,7 @@ npx poe-code@latest configure codex # (or claude, opencode, kimi)
 ```
 
 
-### Unconfigure (remove overrides)
+### Unconfigure (remove overrides)x
 
 ```bash
 npx poe-code unconfigure claude
